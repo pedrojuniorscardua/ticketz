@@ -20,7 +20,7 @@ import {
   WAMessageKey
 } from "libzapitu-rf";
 import { Mutex } from "async-mutex";
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
 import moment from "moment";
 import { Transform } from "stream";
 import { Throttle } from "stream-throttle";
@@ -73,6 +73,7 @@ import GetTicketWbot from "../../helpers/GetTicketWbot";
 import saveMediaToFile from "../../helpers/saveMediaFile";
 import { _t } from "../TranslationServices/i18nService";
 import WhatsappLidMap from "../../models/WhatsappLidMap";
+import sequelize from "../../database";
 import normalizePhone from "../../helpers/NormalizePhone";
 
 export interface ImessageUpsert {
@@ -96,6 +97,54 @@ const ackMutex = new Mutex();
 
 const groupContactCache = new SimpleObjectCache(1000 * 30, logger);
 const outOfHoursCache = new SimpleObjectCache(1000 * 60 * 5, logger);
+
+type ConnectionOwner = { userId: number; queueId: number | null };
+
+/**
+ * Linhares: "conexão de vendedor" — número da empresa que pertence a um
+ * vendedor. O vínculo mora na tabela própria linhares_conexao_vendedor
+ * (fora do schema do Ticketz; criada pelo script conexao-vendedor.ps1).
+ * Sem a tabela ou sem vínculo, a conexão segue o fluxo normal da loja.
+ */
+const getConnectionOwner = async (
+  whatsappId: number
+): Promise<ConnectionOwner | null> => {
+  try {
+    const rows = await sequelize.query<ConnectionOwner>(
+      `SELECT "userId", "queueId" FROM linhares_conexao_vendedor WHERE "whatsappId" = :whatsappId`,
+      { replacements: { whatsappId }, type: QueryTypes.SELECT }
+    );
+    return rows[0] || null;
+  } catch (error) {
+    logger.debug({ error }, "linhares_conexao_vendedor unavailable");
+    return null;
+  }
+};
+
+/**
+ * Linhares: numa conexão de vendedor o ticket é do dono — nasce (ou volta)
+ * aberto, atribuído a ele e na fila dele, sem menu nem mensagem automática.
+ * A fila vem antes do dono porque o Ticketz só deixa admin aceitar ticket
+ * pendente sem fila.
+ */
+const assignToConnectionOwner = async (
+  ticket: Ticket,
+  owner: ConnectionOwner
+) => {
+  if (ticket.status === "closed") return;
+  if (ticket.status === "open" && ticket.userId) return;
+
+  if (!ticket.queueId && owner.queueId) {
+    await updateTicket(ticket, { queueId: owner.queueId, chatbot: false });
+  }
+
+  await updateTicket(ticket, {
+    status: "open",
+    userId: owner.userId,
+    queueId: ticket.queueId || owner.queueId,
+    chatbot: false
+  });
+};
 
 const getTypeMessage = (msg: proto.IWebMessageInfo): string => {
   return getContentType(msg.message);
@@ -1984,6 +2033,20 @@ const handleMessage = async (
       newMessage = await verifyMessage(msg, ticket, contact, {
         skipWebsocket: justCreated
       });
+    }
+
+    // Linhares: conexão de vendedor — registra tudo (inclusive o que o
+    // vendedor responde pelo celular) no nome do dono, sem bot nenhum.
+    const connectionOwner = isGroup
+      ? null
+      : await getConnectionOwner(whatsapp.id);
+
+    if (connectionOwner) {
+      await assignToConnectionOwner(ticket, connectionOwner);
+      if (justCreated && newMessage) {
+        websocketCreateMessage(newMessage);
+      }
+      return;
     }
 
     if (isGroup || contact.disableBot || msg.key.fromMe) {
