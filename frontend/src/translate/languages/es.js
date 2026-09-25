@@ -479,6 +479,10 @@ const messages = {
       ticketsQueueSelect: {
         placeholder: "Colas"
       },
+      ticketsFilterSelect: {
+        connections: "Conexiones",
+        users: "Usuarios"
+      },
       tickets: {
         toasts: {
           deleted: "La atención que estabas siguiendo fue eliminada."

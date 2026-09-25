@@ -476,6 +476,10 @@ const messages = {
       ticketsQueueSelect: {
         placeholder: "Filas"
       },
+      ticketsFilterSelect: {
+        connections: "Conexões",
+        users: "Usuários"
+      },
       tickets: {
         toasts: {
           deleted: "O atendimento que você estava foi deletado."

@@ -414,6 +414,10 @@ const messages = {
       ticketsQueueSelect: {
         placeholder: "Files d'attente"
       },
+      ticketsFilterSelect: {
+        connections: "Connexions",
+        users: "Utilisateurs"
+      },
       tickets: {
         toasts: {
           deleted: "L'intervention que vous gérez a été supprimée."

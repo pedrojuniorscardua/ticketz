@@ -27,6 +27,7 @@ type IndexQuery = {
   notClosed: string;
   all: string;
   queueIds: string;
+  whatsappIds?: string;
   contactId: string;
   tags: string;
   users: string;
@@ -54,6 +55,7 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
     searchParam,
     showAll,
     queueIds: queueIdsStringified,
+    whatsappIds: whatsappIdsStringified,
     contactId,
     tags: tagIdsStringified,
     users: userIdsStringified,
@@ -66,11 +68,16 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
   const { companyId } = req.user;
 
   let queueIds: number[] = [];
+  let whatsappIds: number[] | undefined;
   let tagsIds: number[] = [];
   let usersIds: number[] = [];
 
   if (queueIdsStringified) {
     queueIds = JSON.parse(queueIdsStringified);
+  }
+
+  if (whatsappIdsStringified) {
+    whatsappIds = JSON.parse(whatsappIdsStringified);
   }
 
   if (tagIdsStringified) {
@@ -96,6 +103,7 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
     showAll,
     userId,
     queueIds,
+    whatsappIds,
     withUnreadMessages,
     notClosed: !!notClosed,
     all: !!all,
