@@ -67,12 +67,28 @@ const useStyles = makeStyles(theme => ({
 
   ticketOptionsBox: {
     display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: "column",
     gap: 6,
     // background: "#fafafa",
     padding: theme.spacing(1)
+  },
+
+  // Linhares: linha 1 = acoes (novo / todos / busca), linha 2 = filtros lado a lado
+  ticketOptionsRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    minHeight: 40
+  },
+
+  ticketFiltersRow: {
+    display: "flex",
+    gap: 6
+  },
+
+  filterItem: {
+    flex: 1,
+    minWidth: 0
   },
 
   serachInputWrapper: {
@@ -278,6 +294,7 @@ const TicketsManagerTabs = () => {
         </Tabs>
       </Paper>
       <Paper square elevation={0} className={classes.ticketOptionsBox}>
+        <div className={classes.ticketOptionsRow}>
         {tab === "search" ? (
           <div className={classes.serachInputWrapper}>
             <SearchIcon className={classes.searchIcon} />
@@ -323,28 +340,39 @@ const TicketsManagerTabs = () => {
             )}
           </>
         )}
-        <TicketsQueueSelect
-          style={{ marginLeft: 6 }}
-          selectedQueueIds={selectedQueueIds}
-          userQueues={user?.queues}
-          onChange={values => setSelectedQueueIds(values)}
-        />
-        {whatsApps?.length > 1 && (
-          <TicketsFilterSelect
-            label={i18n.t("ticketsFilterSelect.connections")}
-            options={whatsApps}
-            selectedIds={selectedWhatsappIds}
-            onChange={values => setSelectedWhatsappIds(values)}
-          />
-        )}
-        {profile === "admin" && tab !== "search" && (
-          <TicketsFilterSelect
-            label={i18n.t("ticketsFilterSelect.users")}
-            options={usersList}
-            selectedIds={selectedUserIds}
-            onChange={values => setSelectedUserIds(values)}
-          />
-        )}
+        </div>
+        <div className={classes.ticketFiltersRow}>
+          <div className={classes.filterItem}>
+            <TicketsQueueSelect
+              width="100%"
+              selectedQueueIds={selectedQueueIds}
+              userQueues={user?.queues}
+              onChange={values => setSelectedQueueIds(values)}
+            />
+          </div>
+          {whatsApps?.length > 1 && (
+            <div className={classes.filterItem}>
+              <TicketsFilterSelect
+                width="100%"
+                label={i18n.t("ticketsFilterSelect.connections")}
+                options={whatsApps}
+                selectedIds={selectedWhatsappIds}
+                onChange={values => setSelectedWhatsappIds(values)}
+              />
+            </div>
+          )}
+          {profile === "admin" && tab !== "search" && (
+            <div className={classes.filterItem}>
+              <TicketsFilterSelect
+                width="100%"
+                label={i18n.t("ticketsFilterSelect.users")}
+                options={usersList}
+                selectedIds={selectedUserIds}
+                onChange={values => setSelectedUserIds(values)}
+              />
+            </div>
+          )}
+        </div>
       </Paper>
       <TabPanel value={tab} name="open" className={classes.ticketsWrapper}>
         <Tabs

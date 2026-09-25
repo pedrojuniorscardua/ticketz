@@ -9,14 +9,15 @@ import { i18n } from "../../translate/i18n";
 const TicketsQueueSelect = ({
   userQueues,
   selectedQueueIds = [],
-  onChange
+  onChange,
+  width = 120
 }) => {
   const handleChange = e => {
     onChange(e.target.value);
   };
 
   return (
-    <div style={{ width: 120, marginTop: -4 }}>
+    <div style={{ width, marginTop: width === "100%" ? 0 : -4 }}>
       <FormControl fullWidth margin="dense">
         <Select
           multiple

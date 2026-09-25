@@ -19,7 +19,7 @@ const TicketsFilterSelect = ({
   };
 
   return (
-    <div style={{ width, marginTop: -4 }}>
+    <div style={{ width, marginTop: width === "100%" ? 0 : -4 }}>
       <FormControl fullWidth margin="dense">
         <Select
           multiple
