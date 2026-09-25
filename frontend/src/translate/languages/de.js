@@ -452,6 +452,10 @@ const messages = {
       ticketsQueueSelect: {
         placeholder: "Warteschlangen"
       },
+      ticketsFilterSelect: {
+        connections: "Verbindungen",
+        users: "Benutzer"
+      },
       tickets: {
         toasts: {
           deleted: "Das von Ihnen verwaltete Ticket wurde gelöscht."

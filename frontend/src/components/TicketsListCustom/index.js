@@ -186,6 +186,7 @@ const TicketsListCustom = props => {
     users,
     showAll,
     selectedQueueIds,
+    whatsappIds,
     updateCount,
     style,
     setTabOpen,
@@ -219,7 +220,8 @@ const TicketsListCustom = props => {
     contactId,
     tags,
     users,
-    selectedQueueIds
+    selectedQueueIds,
+    whatsappIds
   ]);
 
   const {
@@ -241,7 +243,8 @@ const TicketsListCustom = props => {
     contactId,
     tags: JSON.stringify(tags),
     users: JSON.stringify(users),
-    queueIds: JSON.stringify(selectedQueueIds)
+    queueIds: JSON.stringify(selectedQueueIds),
+    whatsappIds: whatsappIds?.length ? JSON.stringify(whatsappIds) : undefined
   });
 
   useEffect(() => {
@@ -273,12 +276,19 @@ const TicketsListCustom = props => {
           )) &&
         (!users?.length || users.some(u => u === ticket.userId)) &&
         (!ticket.userId || ticket.userId === user?.id || showAll) &&
-        (!ticket.queueId || selectedQueueIds.indexOf(ticket.queueId) > -1)
+        (!ticket.queueId || selectedQueueIds.indexOf(ticket.queueId) > -1) &&
+        (!whatsappIds?.length || whatsappIds.indexOf(ticket.whatsappId) > -1)
       );
     };
 
     const notBelongsToUserQueues = ticket =>
       ticket.queueId && selectedQueueIds.indexOf(ticket.queueId) === -1;
+
+    // Linhares: ticket que deixou de casar com o filtro de conexao/usuario sai da lista
+    const notMatchesFilters = ticket =>
+      (whatsappIds?.length > 0 &&
+        whatsappIds.indexOf(ticket.whatsappId) === -1) ||
+      (users?.length > 0 && users.indexOf(ticket.userId) === -1);
 
     const onConnectTicketList = () => {
       if (status) {
@@ -319,7 +329,10 @@ const TicketsListCustom = props => {
         });
       }
 
-      if (data.action === "update" && notBelongsToUserQueues(data.ticket)) {
+      if (
+        data.action === "update" &&
+        (notBelongsToUserQueues(data.ticket) || notMatchesFilters(data.ticket))
+      ) {
         dispatch({ type: "DELETE_TICKET", payload: data.ticket?.id });
       }
 
@@ -424,6 +437,7 @@ const TicketsListCustom = props => {
     showTabGroups,
     user,
     selectedQueueIds,
+    whatsappIds,
     contactId,
     tags,
     users,

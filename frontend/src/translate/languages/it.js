@@ -447,6 +447,10 @@ const messages = {
       ticketsQueueSelect: {
         placeholder: "Code"
       },
+      ticketsFilterSelect: {
+        connections: "Connessioni",
+        users: "Utenti"
+      },
       tickets: {
         toasts: {
           deleted: "Il ticket che stavi gestendo è stato eliminato."
