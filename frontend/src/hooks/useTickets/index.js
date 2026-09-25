@@ -17,6 +17,7 @@ const useTickets = ({
   updatedAt,
   showAll,
   queueIds,
+  whatsappIds,
   withUnreadMessages,
   notClosed,
   all
@@ -45,6 +46,7 @@ const useTickets = ({
               updatedAt,
               showAll,
               queueIds,
+              whatsappIds,
               withUnreadMessages,
               notClosed,
               all
@@ -73,6 +75,7 @@ const useTickets = ({
     updatedAt,
     showAll,
     queueIds,
+    whatsappIds,
     withUnreadMessages,
     isSearch,
     notClosed,
@@ -99,6 +102,7 @@ const useTickets = ({
           updatedAt,
           showAll,
           queueIds,
+          whatsappIds,
           withUnreadMessages,
           notClosed,
           all,
@@ -119,6 +123,7 @@ const useTickets = ({
       updatedAt,
       showAll,
       queueIds,
+      whatsappIds,
       withUnreadMessages,
       notClosed,
       all
