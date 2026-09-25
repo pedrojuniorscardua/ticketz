@@ -187,9 +187,11 @@ const TicketListItemCustom = ({ ticket, setTabOpen, groupActionButtons }) => {
 
   const handleCloseTicket = async id => {
     try {
+      // Linhares: fechar pela lista um ticket em atendimento também envia a
+      // pesquisa de satisfação; só os pendentes (triagem) fecham sem pesquisa.
       await api.put(`/tickets/${id}`, {
         status: "closed",
-        justClose: true,
+        justClose: ticket.status !== "open",
         userId: user?.id
       });
     } catch (err) {
