@@ -2,17 +2,13 @@ name: Create and publish multi-arch Docker images
 
 on:
   push:
+    # Linhares: o fork só publica imagens a partir da branch linhares
     branches:
-      - 'main'
-      - 'fix/**'
-      - 'dev'
-      - 'test-**'
-    tags:
-      - 'v*.*.*'
+      - 'linhares'
 env:
   REGISTRY: ghcr.io
-  IMAGE_BACKEND: ticketz-oss/ticketz-backend
-  IMAGE_FRONTEND: ticketz-oss/ticketz-frontend
+  IMAGE_BACKEND: ${{ github.repository_owner }}/ticketz-backend
+  IMAGE_FRONTEND: ${{ github.repository_owner }}/ticketz-frontend
 
 jobs:
   build-and-push-images:
@@ -24,6 +20,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -95,7 +93,7 @@ jobs:
         with:
           context: ./backend
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: ${{ steps.metabackend.outputs.tags }}
           labels: ${{ steps.metabackend.outputs.labels }}
           build-args: TICKETZ_REGISTRY_URL=${{secrets.TICKETZ_REGISTRY_URL}}
@@ -106,6 +104,6 @@ jobs:
         with:
           context: ./frontend
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: ${{ steps.metafrontend.outputs.tags }}
           labels: ${{ steps.metafrontend.outputs.labels }}
