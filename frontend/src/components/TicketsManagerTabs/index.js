@@ -22,6 +22,9 @@ import { i18n } from "../../translate/i18n";
 import { AuthContext } from "../../context/Auth/AuthContext";
 import { Can } from "../Can";
 import TicketsQueueSelect from "../TicketsQueueSelect";
+import TicketsFilterSelect from "../TicketsFilterSelect";
+import { WhatsAppsContext } from "../../context/WhatsApp/WhatsAppsContext";
+import api from "../../services/api";
 import { Box, Button } from "@material-ui/core";
 import { TagsFilter } from "../TagsFilter";
 import { UsersFilter } from "../UsersFilter";
@@ -64,8 +67,10 @@ const useStyles = makeStyles(theme => ({
 
   ticketOptionsBox: {
     display: "flex",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 6,
     // background: "#fafafa",
     padding: theme.spacing(1)
   },
@@ -129,6 +134,20 @@ const TicketsManagerTabs = () => {
   const [selectedContact, setSelectedContact] = useState(null);
   const [selectedTags, setSelectedTags] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
+
+  // Linhares: filtros por conexao e por usuario ao lado do filtro de filas
+  const { whatsApps } = useContext(WhatsAppsContext);
+  const [selectedWhatsappIds, setSelectedWhatsappIds] = useState([]);
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [usersList, setUsersList] = useState([]);
+
+  useEffect(() => {
+    if (profile !== "admin") return;
+    api
+      .get("/users/list")
+      .then(({ data }) => setUsersList(Array.isArray(data) ? data : []))
+      .catch(() => setUsersList([]));
+  }, [profile]);
 
   const { getSetting } = useSettings();
   const [showTabGroups, setShowTabGroups] = useState(false);
@@ -310,6 +329,22 @@ const TicketsManagerTabs = () => {
           userQueues={user?.queues}
           onChange={values => setSelectedQueueIds(values)}
         />
+        {whatsApps?.length > 1 && (
+          <TicketsFilterSelect
+            label={i18n.t("ticketsFilterSelect.connections")}
+            options={whatsApps}
+            selectedIds={selectedWhatsappIds}
+            onChange={values => setSelectedWhatsappIds(values)}
+          />
+        )}
+        {profile === "admin" && tab !== "search" && (
+          <TicketsFilterSelect
+            label={i18n.t("ticketsFilterSelect.users")}
+            options={usersList}
+            selectedIds={selectedUserIds}
+            onChange={values => setSelectedUserIds(values)}
+          />
+        )}
       </Paper>
       <TabPanel value={tab} name="open" className={classes.ticketsWrapper}>
         <Tabs
@@ -351,6 +386,8 @@ const TicketsManagerTabs = () => {
             status="open"
             showAll={showAllTickets}
             selectedQueueIds={selectedQueueIds}
+            whatsappIds={selectedWhatsappIds}
+            users={selectedUserIds}
             updateCount={val => setOpenCount(val)}
             style={applyPanelStyle("open")}
             setTabOpen={setTabOpen}
@@ -359,6 +396,8 @@ const TicketsManagerTabs = () => {
           <TicketsList
             status="pending"
             selectedQueueIds={selectedQueueIds}
+            whatsappIds={selectedWhatsappIds}
+            users={selectedUserIds}
             updateCount={val => setPendingCount(val)}
             style={applyPanelStyle("pending")}
             setTabOpen={setTabOpen}
@@ -371,6 +410,8 @@ const TicketsManagerTabs = () => {
           status="closed"
           showAll={true}
           selectedQueueIds={selectedQueueIds}
+          whatsappIds={selectedWhatsappIds}
+          users={selectedUserIds}
           showTabGroups={showTabGroups}
         />
       </TabPanel>
@@ -379,6 +420,8 @@ const TicketsManagerTabs = () => {
           groups={true}
           showAll={true}
           selectedQueueIds={selectedQueueIds}
+          whatsappIds={selectedWhatsappIds}
+          users={selectedUserIds}
           showTabGroups={showTabGroups}
         />
       </TabPanel>
@@ -403,6 +446,7 @@ const TicketsManagerTabs = () => {
           tags={selectedTags}
           users={selectedUsers}
           selectedQueueIds={selectedQueueIds}
+          whatsappIds={selectedWhatsappIds}
           showTabGroups={showTabGroups}
         />
       </TabPanel>

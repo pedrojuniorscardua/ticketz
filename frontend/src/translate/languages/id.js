@@ -453,6 +453,10 @@ const messages = {
       ticketsQueueSelect: {
         placeholder: "Antrian"
       },
+      ticketsFilterSelect: {
+        connections: "Koneksi",
+        users: "Pengguna"
+      },
       tickets: {
         toasts: {
           deleted: "Tiket yang Anda kerjakan telah dihapus."
