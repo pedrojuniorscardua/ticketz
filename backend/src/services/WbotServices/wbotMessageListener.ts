@@ -1300,11 +1300,47 @@ export const startQueue = async (
   }
 };
 
+// Linhares: janelas do controle de reenvio do menu de filas
+const MENU_HUMAN_REPLY_HOURS = 12;
+const MENU_RESEND_MINUTES = 30;
+
+/**
+ * Linhares: lê as últimas mensagens enviadas pela loja neste ticket para
+ * decidir se o menu de filas deve ser (re)enviado. `options` é o trecho com a
+ * lista de filas, que identifica as mensagens de menu entre as enviadas.
+ */
+const recentMenuActivity = async (ticket: Ticket, options: string) => {
+  const recent = await Message.findAll({
+    where: {
+      ticketId: ticket.id,
+      fromMe: true,
+      createdAt: {
+        [Op.gte]: moment().subtract(MENU_HUMAN_REPLY_HOURS, "hours").toDate()
+      }
+    },
+    attributes: ["body", "createdAt"],
+    order: [["createdAt", "DESC"]],
+    limit: 50
+  });
+
+  const marker = options.trim();
+  const isMenu = (m: Message) => !!marker && !!m.body?.includes(marker);
+  const lastMenu = recent.find(isMenu);
+
+  return {
+    humanReplied: recent.some(m => !isMenu(m)),
+    menuSentRecently:
+      !!lastMenu &&
+      moment().diff(lastMenu.createdAt, "minutes") < MENU_RESEND_MINUTES
+  };
+};
+
 const verifyQueue = async (
   wbot: Session,
   msg: proto.IWebMessageInfo | null,
   ticket: Ticket,
-  _contact: Contact
+  _contact: Contact,
+  menuRequested = false
 ) => {
   const whatsapp = await ShowWhatsAppService(wbot.id!);
 
@@ -1327,19 +1363,34 @@ const verifyQueue = async (
       "disabled"
     )) === "enabled";
 
+  let options = "";
+
+  queues.forEach((queue, index) => {
+    options += showNumericIcons
+      ? `${emojiNumberOption(index + 1)} - `
+      : `*[ ${index + 1} ]* - `;
+    options += `${queue.name}\n`;
+  });
+
+  // Linhares: se alguém da loja já está conversando com o cliente (ex.:
+  // respondeu pelo celular, o que não atribui o ticket), o bot não se mete:
+  // nem reenvia o menu nem trata um número solto ("2" = quantidade) como
+  // escolha de fila. Só o "#" (pedido explícito do menu) passa por cima.
+  const activity = menuRequested
+    ? { humanReplied: false, menuSentRecently: false }
+    : await recentMenuActivity(ticket, options);
+
+  if (activity.humanReplied) {
+    logger.debug(
+      `ticket ${ticket.id}: menu suppressed, store already replied recently`
+    );
+    return;
+  }
+
   const selectedOption = msg ? await getBodyMessage(msg?.message) : null;
   const choosenQueue = selectedOption ? queues[+selectedOption - 1] : null;
 
   const botText = async () => {
-    let options = "";
-
-    queues.forEach((queue, index) => {
-      options += showNumericIcons
-        ? `${emojiNumberOption(index + 1)} - `
-        : `*[ ${index + 1} ]* - `;
-      options += `${queue.name}\n`;
-    });
-
     const textMessage = {
       text: formatBody(`${greetingMessage}\n\n${options}`, ticket)
     };
@@ -1351,6 +1402,9 @@ const verifyQueue = async (
 
   if (choosenQueue) {
     await startQueue(wbot, ticket, choosenQueue);
+  } else if (activity.menuSentRecently) {
+    // Linhares: cliente mandou "Tudo bem?" logo após o menu — não repete
+    logger.debug(`ticket ${ticket.id}: menu sent recently, not resending`);
   } else {
     botText();
     await updateTicket(ticket, {
@@ -1432,7 +1486,7 @@ const handleChartbot = async (
       chatbot: false,
       queueId: null
     });
-    await verifyQueue(wbot, msg, ticket, ticket.contact);
+    await verifyQueue(wbot, msg, ticket, ticket.contact, true);
     return;
   }
 
@@ -1841,7 +1895,7 @@ const handleMessage = async (
         chatbot: false,
         queueId: null
       });
-      await verifyQueue(wbot, msg, ticket, ticket.contact);
+      await verifyQueue(wbot, msg, ticket, ticket.contact, true);
       return;
     }
 
