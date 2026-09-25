@@ -38,6 +38,7 @@ interface Request {
   notClosed?: boolean;
   all?: boolean;
   queueIds: number[];
+  whatsappIds?: number[];
   contactId?: number;
   tags: number[];
   users: number[];
@@ -54,6 +55,7 @@ const ListTicketsService = async ({
   searchParam = "",
   nextUpdatedAt,
   queueIds,
+  whatsappIds,
   contactId,
   tags,
   users,
@@ -159,6 +161,14 @@ const ListTicketsService = async ({
     whereCondition = {
       ...whereCondition,
       status
+    };
+  }
+
+  // Linhares: filtro por conexao (vazio = sem filtro)
+  if (Array.isArray(whatsappIds) && whatsappIds.length > 0) {
+    whereCondition = {
+      ...whereCondition,
+      whatsappId: { [Op.in]: whatsappIds }
     };
   }
 
@@ -282,25 +292,12 @@ const ListTicketsService = async ({
     };
   }
 
+  // Linhares: um ticket tem um unico atendente, entao a intersecao do
+  // upstream esvaziava o resultado com 2+ usuarios; filtra por IN
   if (Array.isArray(users) && users.length > 0) {
-    const ticketsUserFilter: number[][] = [];
-    // eslint-disable-next-line no-restricted-syntax
-    for await (const u of users) {
-      const ticketUsers = await Ticket.findAll({
-        where: { userId: u }
-      });
-      if (ticketUsers) {
-        ticketsUserFilter.push(ticketUsers.map(t => t.id));
-      }
-    }
-
-    const ticketsIntersection: number[] = intersection(...ticketsUserFilter);
-
     whereCondition = {
       ...whereCondition,
-      id: {
-        [Op.in]: ticketsIntersection
-      }
+      userId: { [Op.in]: users }
     };
   }
 
