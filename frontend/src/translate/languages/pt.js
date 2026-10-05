@@ -1218,11 +1218,16 @@ const messages = {
           "Reabra ou aceite esse ticket para enviar uma mensagem.",
         signMessage: "Assinar",
         replying: "Respondendo",
-        editing: "Editando"
+        editing: "Editando",
+        privateNote: "Nota interna (o cliente não vê)",
+        placeholderPrivateNote:
+          "Nota interna: só a equipe vê, o cliente não recebe"
       },
       message: {
         edited: "Editada",
-        forwarded: "Encaminhada"
+        forwarded: "Encaminhada",
+        privateNote: "Nota interna",
+        privateNoteHint: "Nota interna: o cliente não vê esta mensagem"
       },
 
       contactDrawer: {

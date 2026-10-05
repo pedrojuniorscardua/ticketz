@@ -351,6 +351,10 @@ const TicketsListCustom = props => {
 
     const onCompanyAppMessage = data => {
       console.debug("appMessage event received", data);
+      // Linhares: nota interna nao conta como mensagem nova
+      if (data.message?.isPrivate) {
+        return;
+      }
       if (showTabGroups && !!data.ticket?.isGroup !== !!groups) {
         return;
       }

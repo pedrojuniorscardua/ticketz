@@ -1223,11 +1223,16 @@ const messages = {
           "Reabra o acepte este ticket para enviar un mensaje.",
         signMessage: "Firmar",
         replying: "Respondiendo",
-        editing: "Editando"
+        editing: "Editando",
+        privateNote: "Nota interna (el cliente no la ve)",
+        placeholderPrivateNote:
+          "Nota interna: solo el equipo la ve, el cliente no la recibe"
       },
       message: {
         edited: "Editada",
-        forwarded: "Reenviado"
+        forwarded: "Reenviado",
+        privateNote: "Nota interna",
+        privateNoteHint: "Nota interna: el cliente no ve este mensaje"
       },
       contactDrawer: {
         header: "Datos de contacto",

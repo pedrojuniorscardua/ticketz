@@ -140,20 +140,22 @@ const MessageOptionsMenu = ({
         onClose={closeMenu}
       >
         <div>
-          <div className={classes.flexContainer}>
-            {mostUsedEmojis.map((emoji, index) => (
-              <div
-                className={classes.emojiButton}
-                onClick={() => handleReact(emoji)}
-                key={index}
-              >
-                <span style={{ fontSize: "1rem" }}>{emoji}</span>
+          {!message.isPrivate && (
+            <div className={classes.flexContainer}>
+              {mostUsedEmojis.map((emoji, index) => (
+                <div
+                  className={classes.emojiButton}
+                  onClick={() => handleReact(emoji)}
+                  key={index}
+                >
+                  <span style={{ fontSize: "1rem" }}>{emoji}</span>
+                </div>
+              ))}
+              <div className={classes.emojiButton} onClick={openEmoji}>
+                <span style={{ fontSize: "1rem" }}>+</span>
               </div>
-            ))}
-            <div className={classes.emojiButton} onClick={openEmoji}>
-              <span style={{ fontSize: "1rem" }}>+</span>
             </div>
-          </div>
+          )}
           {message.fromMe && [
             <MenuItem key="delete" onClick={handleOpenConfirmationModal}>
               {i18n.t("messageOptionsMenu.delete")}
@@ -173,9 +175,11 @@ const MessageOptionsMenu = ({
           <MenuItem onClick={handleReplyMessage}>
             {i18n.t("messageOptionsMenu.reply")}
           </MenuItem>
-          <MenuItem key="forward" onClick={handleOpenForwardModal}>
-            {i18n.t("messageOptionsMenu.forward")}
-          </MenuItem>
+          {!message.isPrivate && (
+            <MenuItem key="forward" onClick={handleOpenForwardModal}>
+              {i18n.t("messageOptionsMenu.forward")}
+            </MenuItem>
+          )}
         </div>
       </Menu>
     </>

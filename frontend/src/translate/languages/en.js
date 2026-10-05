@@ -1217,11 +1217,16 @@ const messages = {
         placeholderClosed: "Reopen or accept this ticket to send a message.",
         signMessage: "Sign",
         replying: "Replying",
-        editing: "Editing"
+        editing: "Editing",
+        privateNote: "Private note (the customer does not see it)",
+        placeholderPrivateNote:
+          "Private note: only your team sees it, the customer does not receive it"
       },
       message: {
         edited: "Edited",
-        forwarded: "Forwarded"
+        forwarded: "Forwarded",
+        privateNote: "Private note",
+        privateNoteHint: "Private note: the customer does not see this message"
       },
 
       contactDrawer: {

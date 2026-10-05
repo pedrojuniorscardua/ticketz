@@ -16,6 +16,7 @@ import Ticket from "./Ticket";
 import Company from "./Company";
 import Queue from "./Queue";
 import OldMessage from "./OldMessage";
+import User from "./User";
 import { URLCharEncoder } from "./URLCharEncoder";
 
 export type MessageErrorPayload = {
@@ -92,6 +93,19 @@ class Message extends Model {
   @Default(false)
   @Column
   isEdited: boolean;
+
+  // Linhares: nota interna (so a equipe ve; nunca vai ao WhatsApp)
+  @Default(false)
+  @Column
+  isPrivate: boolean;
+
+  // Linhares: autor da nota interna
+  @ForeignKey(() => User)
+  @Column
+  userId: number;
+
+  @BelongsTo(() => User)
+  user: User;
 
   @CreatedAt
   @Column(DataType.DATE(6))

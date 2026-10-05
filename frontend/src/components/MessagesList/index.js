@@ -40,7 +40,8 @@ import {
   LocationOn,
   PlayArrow,
   Pause,
-  CropFree
+  CropFree,
+  Lock
 } from "@material-ui/icons";
 
 import WhatsMarked from "react-whatsmarked";
@@ -635,6 +636,26 @@ const useStyles = makeStyles(theme => ({
     textOverflow: "ellipsis",
     lineHeight: 1.3,
     fontWeight: 700
+  },
+
+  // Linhares: nota interna (so a equipe ve)
+  messagePrivate: {
+    backgroundColor: theme.mode === "light" ? "#fff6cc" : "#4a3b00",
+    border: "1px dashed #e0b400"
+  },
+
+  privateNoteHeader: {
+    display: "flex",
+    alignItems: "center",
+    color: theme.mode === "light" ? "#a07800" : "#f0d060",
+    fontSize: 12,
+    fontWeight: 500,
+    padding: "0 80px 0 6px"
+  },
+
+  privateNoteIcon: {
+    fontSize: 14,
+    marginRight: 4
   }
 }));
 
@@ -1939,10 +1960,15 @@ const MessagesList = ({ ticket, ticketId, isGroup, markAsRead, readOnly }) => {
               id={message.id}
               className={[
                 clsx(classes.messageContainer, classes.messageRight, {
-                  [classes.messageMediaSticker]: isSticker
+                  [classes.messageMediaSticker]: isSticker,
+                  [classes.messagePrivate]: message.isPrivate
                 })
               ]}
-              title={message.queueId && message.queue?.name}
+              title={
+                message.isPrivate
+                  ? i18n.t("message.privateNoteHint")
+                  : message.queueId && message.queue?.name
+              }
             >
               {readOnly || (
                 <IconButton
@@ -1961,6 +1987,14 @@ const MessagesList = ({ ticket, ticketId, isGroup, markAsRead, readOnly }) => {
                 <span className={classes.forwardedMessage}>
                   <Forward fontSize="small" className={classes.forwardedIcon} />{" "}
                   {i18n.t("message.forwarded")}
+                </span>
+              )}
+
+              {message.isPrivate && (
+                <span className={classes.privateNoteHeader}>
+                  <Lock className={classes.privateNoteIcon} />
+                  {i18n.t("message.privateNote")}
+                  {message.user?.name && ` · ${message.user.name}`}
                 </span>
               )}
 
@@ -2013,7 +2047,7 @@ const MessagesList = ({ ticket, ticketId, isGroup, markAsRead, readOnly }) => {
                     <span> {i18n.t("message.edited")} </span>
                   )}
                   {format(parseISO(message.createdAt), "HH:mm")}
-                  {renderMessageAck(message)}
+                  {!message.isPrivate && renderMessageAck(message)}
                 </span>
               </div>
               {message.mediaUrl && checkMessageMedia(message, data, isSticker)}
