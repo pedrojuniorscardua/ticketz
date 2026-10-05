@@ -28,6 +28,11 @@ import { verifyMessage } from "../services/WbotServices/wbotMessageListener";
 import { getJidOf } from "../services/WbotServices/getJidOf";
 import ShowContactService from "../services/ContactServices/ShowContactService";
 import { verifyContact } from "../services/WbotServices/verifyContact";
+import {
+  CreatePrivateNoteService,
+  DeletePrivateNoteService,
+  EditPrivateNoteService
+} from "../services/MessageServices/PrivateNoteService";
 
 type IndexQuery = {
   nextId?: string;
@@ -138,6 +143,21 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
 
   const ticket = await ShowTicketService(ticketId, companyId);
   const { channel } = ticket;
+
+  // Linhares: nota interna nao vai ao WhatsApp (so texto)
+  const isPrivate = [true, "true"].includes(req.body.isPrivate);
+  if (isPrivate) {
+    if (medias?.length) {
+      throw new AppError("ERR_PRIVATE_NOTE_TEXT_ONLY", 400);
+    }
+    await CreatePrivateNoteService({
+      ticket,
+      body,
+      userId,
+      quotedMsgId: quotedMsg?.id
+    });
+    return res.send();
+  }
   if (channel === "whatsapp") {
     await SetTicketMessagesAsRead(ticket);
     if (!ticket.isGroup) {
@@ -185,6 +205,10 @@ export const react = async (req: Request, res: Response): Promise<Response> => {
     throw new AppError("ERR_MESSAGE_NOT_FOUND", 404);
   }
 
+  if (message.isPrivate) {
+    throw new AppError("ERR_PRIVATE_NOTE_NOT_ALLOWED", 400);
+  }
+
   const ticket = await ShowTicketService(ticketId, companyId);
   const wbot = getWbot(ticket.whatsappId);
 
@@ -215,6 +239,19 @@ export const edit = async (req: Request, res: Response): Promise<Response> => {
   const userId = Number(req.user.id) || null;
   const { body }: MessageData = req.body;
 
+  const note = await Message.findOne({
+    where: { id: messageId, companyId, isPrivate: true }
+  });
+  if (note) {
+    await EditPrivateNoteService({
+      message: note,
+      userId,
+      profile: req.user.profile,
+      body
+    });
+    return res.send();
+  }
+
   const { ticketId, message } = await EditWhatsAppMessage({
     messageId,
     companyId,
@@ -237,6 +274,18 @@ export const remove = async (
 ): Promise<Response> => {
   const { messageId } = req.params;
   const { companyId } = req.user;
+
+  const note = await Message.findOne({
+    where: { id: messageId, companyId, isPrivate: true }
+  });
+  if (note) {
+    await DeletePrivateNoteService({
+      message: note,
+      userId: Number(req.user.id),
+      profile: req.user.profile
+    });
+    return res.send();
+  }
 
   const message = await DeleteWhatsAppMessage(messageId);
 
@@ -290,6 +339,10 @@ export const forward = async (
 
   if (!message) {
     throw new AppError("ERR_MESSAGE_NOT_FOUND", 404);
+  }
+
+  if (message.isPrivate) {
+    throw new AppError("ERR_PRIVATE_NOTE_NOT_ALLOWED", 400);
   }
 
   const contact = await Contact.findByPk(contactId);

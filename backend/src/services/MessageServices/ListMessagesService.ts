@@ -116,6 +116,8 @@ const ListMessagesService = async ({
     limit: limit + 1,
     include: [
       "contact",
+      // Linhares: autor da nota interna
+      { model: User, as: "user", attributes: ["id", "name"] },
       {
         model: Message,
         as: "quotedMsg",
