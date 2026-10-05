@@ -1510,6 +1510,82 @@ const handleRating = async (
     );
 };
 
+/**
+ * Linhares: nota (1 a 5) enviada como RESPOSTA à mensagem da pesquisa depois
+ * de a avaliação ter sido cancelada por outra mensagem do cliente. Devolve o
+ * tracking daquela pesquisa se ela ainda estiver dentro do ratingsTimeout.
+ */
+const findCancelledRatingByQuote = async (
+  msg: proto.IWebMessageInfo,
+  bodyMessage: string,
+  whatsapp: Whatsapp,
+  contact: Contact,
+  companyId: number
+): Promise<TicketTraking | null> => {
+  if (!/^[1-5]$/.test(bodyMessage?.trim() || "")) {
+    return null;
+  }
+
+  const { quotedId } = getQuotedMessage(msg);
+  if (!quotedId) {
+    return null;
+  }
+
+  const quotedMessage = await Message.findOne({
+    where: { id: quotedId, companyId, fromMe: true }
+  });
+  if (!quotedMessage) {
+    return null;
+  }
+
+  const timeout =
+    parseInt(await GetCompanySetting(companyId, "ratingsTimeout", "5"), 10) ||
+    5;
+
+  const ticketTracking = await TicketTraking.findOne({
+    where: {
+      ticketId: quotedMessage.ticketId,
+      whatsappId: whatsapp.id,
+      rated: false,
+      expired: true,
+      ratingAt: { [Op.gte]: moment().subtract(timeout, "minutes").toDate() }
+    },
+    include: [
+      {
+        model: Ticket,
+        where: {
+          status: "closed",
+          contactId: contact.id
+        },
+        include: [
+          {
+            model: Contact
+          },
+          {
+            model: User
+          },
+          {
+            model: Queue
+          }
+        ]
+      }
+    ],
+    order: [["ratingAt", "DESC"]]
+  });
+
+  // a mensagem citada tem de ser a da pesquisa (gravada logo antes do ratingAt)
+  if (
+    !ticketTracking ||
+    Math.abs(
+      ticketTracking.ratingAt.getTime() - quotedMessage.createdAt.getTime()
+    ) > 30000
+  ) {
+    return null;
+  }
+
+  return ticketTracking;
+};
+
 const handleChartbot = async (
   ticket: Ticket,
   msg: WAMessage,
@@ -1785,7 +1861,16 @@ const handleMessage = async (
 
     const contact = await verifyContact(msgContact, wbot, companyId);
 
-    if (!msg.key.fromMe && !contact.isGroup) {
+    const findOnly = [
+      "reactionMessage",
+      "stickerMessage",
+      "editedMessage",
+      "protocolMessage"
+    ].includes(msgType);
+
+    // Linhares: reação, figurinha, edição e exclusão não são resposta à
+    // pesquisa — não cancelam a avaliação nem contam como nota
+    if (!msg.key.fromMe && !contact.isGroup && !findOnly) {
       const userRatingEnabled =
         (await GetCompanySetting(companyId, "userRating", "")) === "enabled";
 
@@ -1880,6 +1965,27 @@ const handleMessage = async (
           Sentry.captureException(e);
           console.log(e);
         }
+      } else if (userRatingEnabled) {
+        const cancelledTracking = await findCancelledRatingByQuote(
+          msg,
+          bodyMessage,
+          whatsapp,
+          contact,
+          companyId
+        );
+
+        if (cancelledTracking) {
+          logger.debug(
+            `received late rate ${bodyMessage} for ticket ${cancelledTracking.ticketId}`
+          );
+          handleRating(
+            Number(bodyMessage),
+            cancelledTracking.ticket,
+            cancelledTracking,
+            wbot
+          );
+          return;
+        }
       }
     }
 
@@ -1911,13 +2017,6 @@ const handleMessage = async (
     ) {
       defaultQueue = await Queue.findByPk(whatsapp.queues[0].id);
     }
-
-    const findOnly = [
-      "reactionMessage",
-      "stickerMessage",
-      "editedMessage",
-      "protocolMessage"
-    ].includes(msgType);
 
     const { ticket, justCreated } = await FindOrCreateTicketService(
       contact,
