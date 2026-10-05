@@ -496,9 +496,12 @@ const TicketListItemCustom = ({
         <ListItem
           dense
           onClick={e => {
+            // Linhares: o admin abre a conversa pendente sem aceitar (as
+            // mensagens seguem como não lidas); os demais precisam aceitar.
             if (
               (groupActionButtons || !ticket.isGroup) &&
-              ticket.status === "pending"
+              ticket.status === "pending" &&
+              profile !== "admin"
             )
               return;
             handleSelectTicket(ticket);
