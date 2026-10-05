@@ -1511,6 +1511,39 @@ const handleRating = async (
 };
 
 /**
+ * Linhares: grava uma mensagem do cliente no ticket já fechado sem reabri-lo
+ * (verifyMessage reabriria como pendente). Usado para texto curto recebido
+ * durante a pesquisa de satisfação.
+ */
+const saveMessageOnClosedTicket = async (
+  msg: proto.IWebMessageInfo,
+  ticket: Ticket,
+  contact: Contact
+) => {
+  const body = await getBodyMessage(msg?.message);
+
+  const messageData = {
+    id: msg.key.id,
+    ticketId: ticket.id,
+    contactId: contact.id,
+    body,
+    fromMe: false,
+    mediaType: null,
+    read: false,
+    ack: msg.status || 0,
+    remoteJid: msg.key.remoteJid,
+    participant: msg.key.participant,
+    dataJson: JSON.stringify(msg),
+    isEdited: false
+  };
+
+  await CreateMessageService({
+    messageData,
+    companyId: ticket.companyId
+  });
+};
+
+/**
  * Linhares: nota (1 a 5) enviada como RESPOSTA à mensagem da pesquisa depois
  * de a avaliação ter sido cancelada por outra mensagem do cliente. Devolve o
  * tracking daquela pesquisa se ela ainda estiver dentro do ratingsTimeout.
@@ -1916,16 +1949,19 @@ const handleMessage = async (
             `start handling tracking rating for ticket ${ticketTracking.ticketId}`
           );
 
-          const rate = Number(bodyMessage);
+          const trimmedBody = (bodyMessage || "").trim();
 
-          if (Number.isFinite(rate)) {
+          // Linhares: só número puro é nota (corpo vazio, como foto sem
+          // legenda, dava Number("") = 0 → nota 1)
+          if (/^\d+$/.test(trimmedBody)) {
+            const rate = Number(trimmedBody);
             logger.debug(
               `received rate ${rate} for ticket ${ticketTracking.ticketId}`
             );
             handleRating(rate, ticketTracking.ticket, ticketTracking, wbot);
             return;
           }
-          if (bodyMessage.trim() === "!") {
+          if (trimmedBody === "!") {
             // abort rating and reopen ticket
             logger.debug(
               `ticket ${ticketTracking.ticketId} reopen by contact request`
@@ -1945,7 +1981,21 @@ const handleMessage = async (
             );
             return;
           }
-          // expire rating
+          // Linhares: texto curto ("obrigado", "ok") não cancela a pesquisa:
+          // fica gravado no ticket fechado, sem reabrir e sem resposta
+          if (!messageMedia && trimmedBody.length < 10) {
+            logger.debug(
+              `short message kept on closed ticket ${ticketTracking.ticketId} during rating: ${trimmedBody}`
+            );
+            await saveMessageOnClosedTicket(
+              msg,
+              ticketTracking.ticket,
+              contact
+            );
+            return;
+          }
+          // expire rating — mídia ou texto longo segue o fluxo normal
+          // (antes, áudio e texto curto eram descartados aqui)
           logger.debug(
             `tracking of ticket ${ticketTracking.ticketId} expired by wrong rate ${bodyMessage}`
           );
@@ -1957,10 +2007,6 @@ const handleMessage = async (
             ticketTracking.ticket,
             _t("Rating Cancelled", ticketTracking.ticket)
           );
-          if (bodyMessage.length < 10) {
-            // short message just stop the processing
-            return;
-          }
         } catch (e) {
           Sentry.captureException(e);
           console.log(e);
