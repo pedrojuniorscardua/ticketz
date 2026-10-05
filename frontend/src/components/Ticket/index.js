@@ -197,7 +197,8 @@ const Ticket = () => {
           ticket={ticket}
           ticketId={ticket.id}
           isGroup={ticket.isGroup}
-          markAsRead={true}
+          // Linhares: ver uma conversa pendente não a marca como lida
+          markAsRead={ticket.status !== "pending"}
         ></MessagesList>
         <MessageInput ticket={ticket} showTabGroups />
       </>
