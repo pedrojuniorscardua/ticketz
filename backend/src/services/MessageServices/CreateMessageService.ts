@@ -29,7 +29,16 @@ interface Request {
 
 export const websocketCreateMessage = (message: Message) => {
   const io = getIO();
-  io.to(message.ticketId.toString())
+  let ioStack = io.to(message.ticketId.toString());
+
+  // Linhares: o atendente do ticket sempre recebe a mensagem nova pela sala
+  // user-<id> (entrada no connect, sem contador), mesmo que o navegador tenha
+  // saido das salas de notificacao.
+  if (message.ticket.userId) {
+    ioStack = ioStack.to(`user-${message.ticket.userId}`);
+  }
+
+  ioStack
     .to(`company-${message.companyId}-${message.ticket.status}`)
     .to(`company-${message.companyId}-notification`)
     .to(`queue-${message.ticket.queueId}-${message.ticket.status}`)
