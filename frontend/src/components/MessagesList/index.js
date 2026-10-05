@@ -822,6 +822,22 @@ const MessagesList = ({ ticket, ticketId, isGroup, markAsRead, readOnly }) => {
     });
   }, [ticketId]);
 
+  // Linhares: a conversa pendente abre sem marcar como lida; ao ser aceita
+  // com a tela aberta, recarrega para marcar.
+  const markAsReadRef = useRef({ ticketId, markAsRead });
+  useEffect(() => {
+    const previous = markAsReadRef.current;
+    markAsReadRef.current = { ticketId, markAsRead };
+    if (
+      ticketId &&
+      previous.ticketId === ticketId &&
+      previous.markAsRead === false &&
+      markAsRead
+    ) {
+      loadData();
+    }
+  }, [ticketId, markAsRead]);
+
   useEffect(() => {
     if (!ticket.id) {
       return;

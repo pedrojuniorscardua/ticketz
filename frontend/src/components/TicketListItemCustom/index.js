@@ -372,7 +372,10 @@ const TicketListItemCustom = ({ ticket, setTabOpen, groupActionButtons }) => {
             (groupActionButtons || !ticket.isGroup) && (
               <Tooltip title="Fechar Conversa">
                 <ClearOutlinedIcon
-                  onClick={() => handleCloseTicket(ticket.id)}
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleCloseTicket(ticket.id);
+                  }}
                   fontSize="small"
                   style={{
                     color: "#fff",
@@ -420,7 +423,10 @@ const TicketListItemCustom = ({ ticket, setTabOpen, groupActionButtons }) => {
             (groupActionButtons || !ticket.isGroup) && (
               <Tooltip title="Aceitar Conversa">
                 <DoneIcon
-                  onClick={() => handleAcceptTicket(ticket.id)}
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleAcceptTicket(ticket.id);
+                  }}
                   fontSize="small"
                   style={{
                     color: "#fff",
@@ -480,9 +486,12 @@ const TicketListItemCustom = ({ ticket, setTabOpen, groupActionButtons }) => {
         dense
         button
         onClick={e => {
+          // Linhares: o admin abre a conversa pendente sem aceitar (as
+          // mensagens seguem como não lidas); os demais precisam aceitar.
           if (
             (groupActionButtons || !ticket.isGroup) &&
-            ticket.status === "pending"
+            ticket.status === "pending" &&
+            profile !== "admin"
           )
             return;
           handleSelectTicket(ticket);
