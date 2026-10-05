@@ -1363,6 +1363,7 @@ const recentMenuActivity = async (ticket: Ticket, options: string) => {
     where: {
       ticketId: ticket.id,
       fromMe: true,
+      isPrivate: false,
       createdAt: {
         [Op.gte]: moment().subtract(MENU_HUMAN_REPLY_HOURS, "hours").toDate()
       }

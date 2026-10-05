@@ -45,7 +45,8 @@ const SendWhatsAppMessage = async ({
       }
     });
 
-    if (chatMessage) {
+    // Linhares: nota interna nao existe no WhatsApp, nao da para citar
+    if (chatMessage && !chatMessage.isPrivate) {
       const msgFound = JSON.parse(chatMessage.dataJson);
 
       options = {

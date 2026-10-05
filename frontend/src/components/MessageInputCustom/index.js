@@ -9,7 +9,8 @@ import {
   Code,
   FormatListNumbered,
   FormatListBulleted,
-  FormatQuote
+  FormatQuote,
+  Lock
 } from "@material-ui/icons";
 
 import { makeStyles } from "@material-ui/core/styles";
@@ -88,6 +89,18 @@ const useStyles = makeStyles(theme => ({
     paddingLeft: 10,
     flex: 1,
     border: "none"
+  },
+
+  // Linhares: campo em modo nota interna
+  privateNoteWrapper: {
+    backgroundColor: theme.mode === "light" ? "#fff6cc" : "#4a3b00",
+    borderColor: "#e0b400"
+  },
+
+  privateNoteIcon: {
+    color: props => (props.value ? "#c99a00" : "gray"),
+    width: 48,
+    height: 48
   },
 
   cameraIcon: {
@@ -264,6 +277,26 @@ const IconSwitch = props => {
   );
 };
 
+// Linhares: liga/desliga a nota interna (so a equipe ve)
+const PrivateNoteSwitch = props => {
+  const { setter, value, disabled } = props;
+  const classes = useStyles({ value });
+
+  return (
+    <Tooltip title={i18n.t("messagesInput.privateNote")}>
+      <span>
+        <IconButton
+          onClick={() => setter(!value)}
+          className={classes.privateNoteIcon}
+          disabled={disabled}
+        >
+          <Lock />
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+};
+
 const FileInput = props => {
   const { handleChangeMedias, disableOption } = props;
   const classes = useStyles();
@@ -300,16 +333,17 @@ const ActionButtons = props => {
     handleCancelAudio,
     handleUploadAudio,
     handleStartRecording,
-    disableOption
+    disableOption,
+    privateNote
   } = props;
   const classes = useStyles();
-  if (inputMessage) {
+  if (inputMessage || privateNote) {
     return (
       <IconButton
         aria-label="sendMessage"
         component="span"
         onClick={handleSendMessage}
-        disabled={disableOption}
+        disabled={disableOption || !inputMessage}
       >
         <SendIcon className={classes.sendMessageIcons} />
       </IconButton>
@@ -382,7 +416,8 @@ const CustomInput = props => {
     handleInputPaste,
     handleChangeMedias,
     handlePresenceUpdate,
-    disableOption
+    disableOption,
+    privateNote
   } = props;
   const classes = useStyles();
   const [quickMessages, setQuickMessages] = useState([]);
@@ -449,16 +484,21 @@ const CustomInput = props => {
       handleSendMessage();
       return;
     }
-    handlePresenceUpdate && handlePresenceUpdate("composing");
+    if (!privateNote) {
+      handlePresenceUpdate && handlePresenceUpdate("composing");
+    }
   };
 
   const onPaste = e => {
-    if (ticketStatus === "open") {
+    if (ticketStatus === "open" && !privateNote) {
       handleInputPaste(e);
     }
   };
 
   const renderPlaceholder = () => {
+    if (privateNote) {
+      return i18n.t("messagesInput.placeholderPrivateNote");
+    }
     if (ticketStatus === "open") {
       return i18n.t("messagesInput.placeholderOpen");
     }
@@ -623,7 +663,11 @@ const CustomInput = props => {
   };
 
   return (
-    <div className={classes.messageInputWrapper}>
+    <div
+      className={clsx(classes.messageInputWrapper, {
+        [classes.privateNoteWrapper]: privateNote
+      })}
+    >
       <Autocomplete
         disabled={disableOption}
         freeSolo
@@ -684,7 +728,7 @@ const CustomInput = props => {
                         <IconButton
                           aria-label="camera-upload"
                           component="span"
-                          disabled={disableOption}
+                          disabled={disableOption || privateNote}
                         >
                           <CameraAltIcon className={classes.cameraIcon} />
                         </IconButton>
@@ -809,6 +853,7 @@ const MessageInputCustom = props => {
   const [loading, setLoading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [percentLoading, setPercentLoading] = useState(0);
+  const [privateNote, setPrivateNote] = useState(false);
 
   const inputRef = useRef();
   const { setReplyingMessage, replyingMessage } =
@@ -848,9 +893,20 @@ const MessageInputCustom = props => {
     };
   }, [socketManager]);
 
+  // Linhares: responder uma nota interna so pode ser com outra nota
+  useEffect(() => {
+    if (replyingMessage?.isPrivate) {
+      setPrivateNote(true);
+    }
+  }, [replyingMessage]);
+
   useEffect(() => {
     if (editingMessage) {
-      if (signMessage && editingMessage.body.startsWith(`*${user.name}:*\n`)) {
+      if (
+        !editingMessage.isPrivate &&
+        signMessage &&
+        editingMessage.body.startsWith(`*${user.name}:*\n`)
+      ) {
         setInputMessage(
           editingMessage.body.substr(editingMessage.body.indexOf("\n") + 1)
         );
@@ -872,6 +928,7 @@ const MessageInputCustom = props => {
       setReplyingMessage(null);
       setEditingMessage(null);
       setInputMessage("");
+      setPrivateNote(false);
     };
   }, [ticketId]);
 
@@ -889,7 +946,8 @@ const MessageInputCustom = props => {
   };
 
   const handleChangeMedias = e => {
-    if (!e.target.files) {
+    // Linhares: nota interna e so texto; arquivo iria para o cliente
+    if (!e.target.files || noteMode) {
       return;
     }
 
@@ -898,7 +956,7 @@ const MessageInputCustom = props => {
   };
 
   const handleInputPaste = e => {
-    if (e.clipboardData.files[0]) {
+    if (e.clipboardData.files[0] && !noteMode) {
       setMedias([e.clipboardData.files[0]]);
     }
   };
@@ -1002,6 +1060,9 @@ const MessageInputCustom = props => {
     }
   };
 
+  // Linhares: editar segue o tipo da mensagem editada; fora disso vale o botao
+  const noteMode = editingMessage ? !!editingMessage.isPrivate : privateNote;
+
   const handleSendMessage = async () => {
     if (inputMessage.trim() === "") return;
     //if (disableOption) return
@@ -1011,13 +1072,17 @@ const MessageInputCustom = props => {
       read: 1,
       fromMe: true,
       mediaUrl: "",
-      body: signMessage
-        ? `*${user?.name}:*\n${inputMessage.trim()}`
-        : inputMessage.trim(),
-      quotedMsg: replyingMessage
+      body:
+        signMessage && !noteMode
+          ? `*${user?.name}:*\n${inputMessage.trim()}`
+          : inputMessage.trim(),
+      quotedMsg: replyingMessage,
+      isPrivate: noteMode
     };
 
-    handlePresenceUpdate(null);
+    if (!noteMode) {
+      handlePresenceUpdate(null);
+    }
 
     const url =
       editingMessage !== null
@@ -1185,7 +1250,7 @@ const MessageInputCustom = props => {
           )}
 
           <FileInput
-            disableOption={disableOption}
+            disableOption={disableOption || noteMode}
             handleChangeMedias={handleChangeMedias}
           />
 
@@ -1194,6 +1259,12 @@ const MessageInputCustom = props => {
             value={signMessage}
             icon={faSignature}
             tooltip={i18n.t("messagesInput.signMessage")}
+          />
+
+          <PrivateNoteSwitch
+            setter={setPrivateNote}
+            value={noteMode}
+            disabled={!!editingMessage || recording}
           />
 
           <CustomInput
@@ -1208,6 +1279,7 @@ const MessageInputCustom = props => {
             handleChangeMedias={handleChangeMedias}
             handlePresenceUpdate={handlePresenceUpdate}
             disableOption={disableOption}
+            privateNote={noteMode}
           />
 
           <ActionButtons
@@ -1220,6 +1292,7 @@ const MessageInputCustom = props => {
             handleCancelAudio={handleCancelAudio}
             handleUploadAudio={handleUploadAudio}
             handleStartRecording={handleStartRecording}
+            privateNote={noteMode}
           />
         </div>
       </Paper>
