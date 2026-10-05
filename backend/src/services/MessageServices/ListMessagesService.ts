@@ -4,6 +4,7 @@ import Message from "../../models/Message";
 import Ticket from "../../models/Ticket";
 import ShowTicketService from "../TicketServices/ShowTicketService";
 import Queue from "../../models/Queue";
+import User from "../../models/User";
 import { GetCompanySetting } from "../../helpers/CheckSettings";
 
 interface Request {
@@ -97,6 +98,8 @@ const ListMessagesService = async ({
     limit: limit + 1,
     include: [
       "contact",
+      // Linhares: autor da nota interna
+      { model: User, as: "user", attributes: ["id", "name"] },
       {
         model: Message,
         as: "quotedMsg",
