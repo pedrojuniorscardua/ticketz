@@ -324,6 +324,14 @@ const socketManager = {
         }
 
         localStorage.setItem("token", JSON.stringify(refreshedToken));
+        // Linhares: mantem companyId/userId em dia (ver storeToken no useAuth)
+        const decoded = decodeToken(refreshedToken);
+        if (decoded?.companyId) {
+          localStorage.setItem("companyId", decoded.companyId);
+        }
+        if (decoded?.id) {
+          localStorage.setItem("userId", decoded.id);
+        }
         api.defaults.headers.Authorization = `Bearer ${refreshedToken}`;
 
         return refreshedToken;

@@ -14,6 +14,21 @@ import { decodeToken } from "react-jwt";
 
 let apiInterceptorsRegistered = false;
 
+// Linhares: renovar o token gravava so "token". Se um 401 (em qualquer aba)
+// tinha apagado companyId/userId, a sessao seguia restaurada pelo cookie com
+// companyId nulo e as telas escutavam "company-null-*": a lista parava de
+// atualizar ate um novo login. Sempre regrava os dois a partir do token.
+const storeToken = token => {
+  localStorage.setItem("token", JSON.stringify(token));
+  const decoded = decodeToken(token);
+  if (decoded?.companyId) {
+    localStorage.setItem("companyId", decoded.companyId);
+  }
+  if (decoded?.id) {
+    localStorage.setItem("userId", decoded.id);
+  }
+};
+
 const useAuth = () => {
   const history = useHistory();
   const [isAuth, setIsAuth] = useState(false);
@@ -53,7 +68,7 @@ const useAuth = () => {
 
           const { data } = await api.post("/auth/refresh_token");
           if (data) {
-            localStorage.setItem("token", JSON.stringify(data.token));
+            storeToken(data.token);
             api.defaults.headers.Authorization = `Bearer ${data.token}`;
           }
           return api(originalRequest);
@@ -77,7 +92,7 @@ const useAuth = () => {
       if (token) {
         try {
           const { data } = await api.post("/auth/refresh_token");
-          localStorage.setItem("token", JSON.stringify(data.token));
+          storeToken(data.token);
           api.defaults.headers.Authorization = `Bearer ${data.token}`;
           socketManager.syncCurrentSocketToken?.(data.token);
           setIsAuth(true);
