@@ -290,7 +290,11 @@ const TicketsListCustom = props => {
         whatsappIds.indexOf(ticket.whatsappId) === -1) ||
       (users?.length > 0 && users.indexOf(ticket.userId) === -1);
 
+    // Linhares: callback de "ready" atrasado nao pode entrar na sala depois do cleanup
+    let active = true;
+
     const onConnectTicketList = () => {
+      if (!active) return;
       if (status) {
         socket.emit("joinTickets", status);
       } else {
@@ -420,12 +424,12 @@ const TicketsListCustom = props => {
       });
     });
 
+    // Linhares: o disconnect() do ManagedSocket ja emite leave* para cada join
+    // feito por este socket. Emitir leave aqui tambem saia DUAS vezes: o contador
+    // do backend zerava e tirava da sala o NotificationsPopOver (vendedor parava
+    // de receber mensagens novas ate recarregar a pagina).
     return () => {
-      if (status) {
-        socket.emit("leaveTickets", status);
-      } else {
-        socket.emit("leaveNotification");
-      }
+      active = false;
       socket.disconnect();
     };
   }, [
