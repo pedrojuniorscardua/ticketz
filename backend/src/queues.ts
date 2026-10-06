@@ -16,20 +16,17 @@ import Company from "./models/Company";
 import Plan from "./models/Plan";
 import TicketTraking from "./models/TicketTraking";
 import { GetCompanySetting } from "./helpers/CheckSettings";
-import { getWbot } from "./libs/wbot";
 import Ticket from "./models/Ticket";
 import QueueModel from "./models/Queue";
 import UpdateTicketService from "./services/TicketServices/UpdateTicketService";
 import { handleMessage } from "./services/WbotServices/wbotMessageListener";
 import Invoices from "./models/Invoices";
-import formatBody, { mustacheFormat } from "./helpers/Mustache";
+import { mustacheFormat } from "./helpers/Mustache";
 import Setting from "./models/Setting";
 import { parseToMilliseconds } from "./helpers/parseToMilliseconds";
 import { startCampaignQueues } from "./queues/campaign";
 import { clearRepeatableJobsFromQueues } from "./queues/repeatableJobs";
 import OutOfTicketMessage from "./models/OutOfTicketMessages";
-import { getJidOf } from "./services/WbotServices/getJidOf";
-import { _t } from "./services/TranslationServices/i18nService";
 import { makeRandomId } from "./helpers/MakeRandomId";
 import { flushPoolMonitor } from "./database/poolMonitor";
 import CheckAllContainersUpdateService from "./services/DockerServices/CheckAllContainersUpdateService";
@@ -195,21 +192,13 @@ async function setRatingExpired(tracking: TicketTraking, threshold: Date) {
     expired: true
   });
 
-  if (tracking.ratingAt < subMinutes(threshold, 5)) {
-    return;
-  }
-
-  const wbot = getWbot(tracking.whatsapp.id);
-
-  const complationMessage =
-    tracking.whatsapp.complationMessage.trim() ||
-    _t("Service completed", tracking.whatsapp);
-
-  await wbot.sendMessage(getJidOf(tracking.ticket), {
-    text: formatBody(`\u200e${complationMessage}`, tracking.ticket)
-  });
-
-  logger.debug({ tracking }, "rating timedout");
+  // Linhares: cliente que não respondeu a pesquisa não recebe mais nada —
+  // o "Obrigado... Quando precisar..." saía 1 h depois, sem ficar gravado na
+  // conversa, e era a mensagem automática que a equipe nem via
+  logger.debug(
+    { ticketId: tracking.ticketId, threshold },
+    "rating timedout (no completion message)"
+  );
 }
 
 async function handleRatingsTimeout() {

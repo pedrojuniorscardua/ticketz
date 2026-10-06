@@ -96,7 +96,9 @@ const wbotMutex = new Mutex();
 const ackMutex = new Mutex();
 
 const groupContactCache = new SimpleObjectCache(1000 * 30, logger);
-const outOfHoursCache = new SimpleObjectCache(1000 * 60 * 5, logger);
+// Linhares: um aviso de fora do expediente por ticket a cada 12 h (eram 5 min:
+// cliente que mandava várias mensagens à noite recebia o aviso de novo)
+const outOfHoursCache = new SimpleObjectCache(1000 * 60 * 60 * 12, logger);
 
 type ConnectionOwner = { userId: number; queueId: number | null };
 
@@ -1999,14 +2001,11 @@ const handleMessage = async (
           logger.debug(
             `tracking of ticket ${ticketTracking.ticketId} expired by wrong rate ${bodyMessage}`
           );
+          // Linhares: sem o aviso "Avaliação encerrada" — o cliente já
+          // passou a outro assunto e a mensagem dele segue para a equipe
           ticketTracking.update({
             expired: true
           });
-          quickMessage(
-            wbot,
-            ticketTracking.ticket,
-            _t("Rating Cancelled", ticketTracking.ticket)
-          );
         } catch (e) {
           Sentry.captureException(e);
           console.log(e);
