@@ -1,4 +1,6 @@
 import moment from "moment";
+import { Op } from "sequelize";
+import { subDays } from "date-fns";
 import CheckContactOpenTickets from "../../helpers/CheckContactOpenTickets";
 import SetTicketMessagesAsRead from "../../helpers/SetTicketMessagesAsRead";
 import { getIO } from "../../libs/socket";
@@ -16,6 +18,7 @@ import { logger } from "../../utils/logger";
 import { incrementCounter } from "../CounterServices/IncrementCounter";
 import { getJidOf } from "../WbotServices/getJidOf";
 import Queue from "../../models/Queue";
+import TicketTraking from "../../models/TicketTraking";
 import { _t } from "../TranslationServices/i18nService";
 
 export interface UpdateTicketData {
@@ -53,6 +56,45 @@ const sendFormattedMessage = async (
     text: messageText
   });
   await verifyMessage(queueChangedMessage, ticket, ticket.contact);
+};
+
+/**
+ * Linhares: no máximo uma pesquisa de satisfação por contato a cada N dias
+ * (setting linharesRatingIntervalDays, padrão 30; "0" desliga o limite).
+ * Conta a pesquisa ENVIADA, respondida ou não — o que incomoda o cliente
+ * frequente é receber a pergunta a cada atendimento.
+ */
+const ratingSentRecently = async (ticket: Ticket): Promise<boolean> => {
+  const days = parseInt(
+    await GetCompanySetting(
+      ticket.companyId,
+      "linharesRatingIntervalDays",
+      "30"
+    ),
+    10
+  );
+
+  if (!days) {
+    return false;
+  }
+
+  const recent = await TicketTraking.findOne({
+    where: {
+      companyId: ticket.companyId,
+      ratingAt: { [Op.gte]: subDays(new Date(), days) }
+    },
+    include: [
+      {
+        model: Ticket,
+        where: { contactId: ticket.contactId },
+        attributes: [],
+        required: true
+      }
+    ],
+    attributes: ["id"]
+  });
+
+  return !!recent;
 };
 
 export function websocketUpdateTicket(ticket: Ticket, moreChannels?: string[]) {
@@ -151,6 +193,8 @@ const UpdateTicketService = async ({
     const oldStatus = ticket.status;
     const oldUserId = ticket.user?.id;
     const oldQueueId = ticket.queueId;
+    // Linhares: o cliente já foi atendido por alguém (antes desta alteração)
+    const wasAttended = !!ticketTraking.startedAt;
 
     // only admin can accept pending tickets that have no queue
     if (!oldQueueId && userId && oldStatus === "pending" && status === "open") {
@@ -184,6 +228,10 @@ const UpdateTicketService = async ({
         ticketTraking.userId = ticket.userId;
       }
 
+      // Linhares: contato que recebeu pesquisa há pouco é encerrado em
+      // silêncio (sem pesquisa e sem a mensagem de conclusão)
+      let quietClose = false;
+
       if (
         userRatingSetting === "enabled" &&
         ticket.whatsapp?.status === "CONNECTED" &&
@@ -191,7 +239,18 @@ const UpdateTicketService = async ({
         !isGroup &&
         !ticket.contact.disableBot
       ) {
-        if (!ticketTraking.ratingAt && !justClose) {
+        quietClose =
+          !ticketTraking.ratingAt &&
+          !justClose &&
+          (await ratingSentRecently(ticket));
+
+        if (quietClose) {
+          logger.debug(
+            `ticket ${ticket.id}: rating skipped, contact rated recently`
+          );
+        }
+
+        if (!ticketTraking.ratingAt && !justClose && !quietClose) {
           if (ticket.channel === "whatsapp") {
             const ratingTxt =
               ticket.whatsapp.ratingMessage?.trim() ||
@@ -242,6 +301,7 @@ const UpdateTicketService = async ({
         !isGroup &&
         !ticket.contact.disableBot &&
         !justClose &&
+        !quietClose &&
         ticket.whatsapp?.complationMessage.trim() &&
         ticket.whatsapp.status === "CONNECTED"
       ) {
@@ -388,8 +448,12 @@ const UpdateTicketService = async ({
         }
       }
 
+      // Linhares: o aviso de transferência só vai para quem ainda espera o
+      // primeiro atendimento; com a conversa em andamento, mudar de fila é
+      // organização interna (o atendente avisa o cliente se for o caso)
       if (
         !accepted &&
+        !wasAttended &&
         oldQueueId &&
         ticket.queueId &&
         oldQueueId !== ticket.queueId &&
