@@ -4,6 +4,7 @@ import { useTheme } from "@material-ui/core/styles";
 import { useHistory } from "react-router-dom";
 import { format } from "date-fns";
 import useSound from "use-sound";
+import { toast } from "react-toastify";
 
 import Popover from "@material-ui/core/Popover";
 import IconButton from "@material-ui/core/IconButton";
@@ -200,6 +201,33 @@ const NotificationsPopOver = props => {
       `company-${companyId}-contact`,
       onCompanyContactNotificationsPopover
     );
+    // Linhares: outro atendente pediu a transferencia de um contato meu
+    const onLinharesNotice = data => {
+      if (data?.action !== "transfer-request" || !data.ticket) return;
+      const text = i18n.t("tickets.notification.transferRequest", {
+        requester: data.requester?.name || "?",
+        contact: data.contact?.name || data.contact?.number || "?",
+        interpolation: { escapeValue: false }
+      });
+      const goToTicket = () =>
+        historyRef.current.push(`/tickets/${data.ticket.uuid}`);
+      toast.info(text, { autoClose: 15000, onClick: goToTicket });
+      try {
+        const notification = new Notification(
+          i18n.t("tickets.notification.transferRequestTitle"),
+          { body: text, tag: `transfer-${data.ticket.id}`, renotify: true }
+        );
+        notification.onclick = e => {
+          e.preventDefault();
+          window.focus();
+          goToTicket();
+        };
+      } catch (e) {
+        console.error("Failed to push browser notification");
+      }
+      soundAlertRef.current();
+    };
+    socket.on(`company-${companyId}-linhares-notice`, onLinharesNotice);
     socket.on("wsRefreshRequired", refreshRequired => {
       if (refreshRequired) {
         refetchTickets();

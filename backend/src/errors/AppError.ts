@@ -5,10 +5,19 @@ class AppError {
 
   public readonly level: string;
 
-  constructor(message: string, statusCode = 400, level = "warn") {
+  // Linhares: detalhes extras enviados ao frontend junto com o codigo do erro
+  public readonly data?: Record<string, unknown>;
+
+  constructor(
+    message: string,
+    statusCode = 400,
+    level = "warn",
+    data?: Record<string, unknown>
+  ) {
     this.message = message;
     this.statusCode = statusCode;
     this.level = level;
+    this.data = data;
   }
 }
 
