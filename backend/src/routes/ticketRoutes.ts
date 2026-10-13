@@ -31,6 +31,13 @@ ticketRoutes.put(
   TicketController.update
 );
 
+ticketRoutes.post(
+  "/tickets/:ticketId/transfer-request",
+  isAuth,
+  isCompliant,
+  TicketController.requestTransfer
+);
+
 ticketRoutes.delete(
   "/tickets/:ticketId",
   isAuth,

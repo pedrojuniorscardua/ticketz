@@ -487,7 +487,10 @@ const messages = {
         },
         notification: {
           message: "Message from",
-          nomessages: "No messages"
+          nomessages: "No messages",
+          transferRequestTitle: "Transfer request",
+          transferRequest:
+            "{{requester}} asked to transfer contact {{contact}}. Click to open the ticket."
         },
         tabs: {
           open: { title: "Open" },
@@ -531,6 +534,27 @@ const messages = {
         buttons: {
           ok: "Save",
           cancel: "Cancel"
+        },
+        blocked: {
+          titleOpen: "Contact already being served",
+          titlePending: "Contact waiting in queue",
+          withUser: "{{contact}} is being served by {{user}} since {{since}}.",
+          pending: "{{contact}} is waiting for service since {{since}}.",
+          queue: "Queue: {{queue}}",
+          noQueue: "No queue",
+          connection: "Connection: {{connection}}",
+          hintAccept:
+            "The ticket is in your queue: accept it to serve the contact.",
+          hintRequest:
+            "Ask for a transfer: the current agent gets a notice and an internal note.",
+          requestSent: "Transfer request sent to {{user}}.",
+          requestSentAdmins: "Transfer request sent to the admins.",
+          buttons: {
+            close: "Close",
+            request: "Request transfer",
+            accept: "Accept and open",
+            open: "Open ticket"
+          }
         }
       },
       mainDrawer: {
@@ -1358,6 +1382,8 @@ const messages = {
         ERR_EDITING_WAPP_MSG: "Could not edit WhatsApp message.",
         ERR_OTHER_OPEN_TICKET:
           "There is already an open ticket for this contact.",
+        ERR_TICKET_NOT_ACTIVE: "This ticket is no longer open.",
+        ERR_TRANSFER_REQUEST_OWN_TICKET: "This ticket is already yours.",
         ERR_SESSION_EXPIRED: "Session expired. Please log in.",
         ERR_USER_CREATION_DISABLED:
           "User creation has been disabled by the administrator.",
