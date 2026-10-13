@@ -3,7 +3,9 @@ import Button from "@material-ui/core/Button";
 import Dialog from "@material-ui/core/Dialog";
 import DialogActions from "@material-ui/core/DialogActions";
 import DialogContent from "@material-ui/core/DialogContent";
+import DialogContentText from "@material-ui/core/DialogContentText";
 import DialogTitle from "@material-ui/core/DialogTitle";
+import { format } from "date-fns";
 import { i18n } from "../../translate/i18n";
 import api from "../../services/api";
 import ButtonWithSpinner from "../ButtonWithSpinner";
@@ -22,6 +24,8 @@ import {
 import { toast } from "react-toastify";
 import { ContactSelect } from "../ContactSelect";
 
+const noEscape = { interpolation: { escapeValue: false } };
+
 const NewTicketModal = ({ modalOpen, onClose, contact }) => {
   const [selectedContact, setSelectedContact] = useState(null);
   const [forcedContact, setForcedContact] = useState(null);
@@ -29,6 +33,8 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
   const [newContact, setNewContact] = useState({});
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Linhares: contato ja esta com outro atendente ou aguardando numa fila
+  const [blocked, setBlocked] = useState(null);
   const { user } = useContext(AuthContext);
 
   useEffect(() => {
@@ -40,11 +46,13 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
 
   useEffect(() => {
     setSelectedQueue("");
+    setBlocked(null);
   }, [modalOpen]);
 
   const handleClose = () => {
     onClose();
     setSelectedContact(null);
+    setBlocked(null);
   };
 
   const handleSaveTicket = async contactId => {
@@ -64,10 +72,76 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
       });
       onClose(ticket);
     } catch (err) {
+      const response = err?.response?.data;
+      if (response?.error === "ERR_OTHER_OPEN_TICKET" && response?.data) {
+        setBlocked(response.data);
+      } else {
+        toastError(err);
+      }
+    }
+    setLoading(false);
+  };
+
+  const isAdmin = user.profile === "admin";
+
+  const canAccept =
+    !!blocked &&
+    blocked.status === "pending" &&
+    (isAdmin ||
+      (!!blocked.queueId &&
+        (user.queues || []).some(q => q.id === blocked.queueId)));
+
+  const openBlockedTicket = () => {
+    const uuid = blocked.uuid;
+    setBlocked(null);
+    setSelectedContact(null);
+    onClose({ uuid });
+  };
+
+  const handleAcceptBlocked = async () => {
+    setLoading(true);
+    try {
+      await api.put(`/tickets/${blocked.ticketId}`, {
+        status: "open",
+        userId: user.id
+      });
+      openBlockedTicket();
+    } catch (err) {
       toastError(err);
     }
     setLoading(false);
   };
+
+  const handleRequestTransfer = async () => {
+    setLoading(true);
+    try {
+      await api.post(`/tickets/${blocked.ticketId}/transfer-request`);
+      toast.success(
+        blocked.userName
+          ? i18n.t("newTicketModal.blocked.requestSent", {
+              user: blocked.userName,
+              ...noEscape
+            })
+          : i18n.t("newTicketModal.blocked.requestSentAdmins")
+      );
+      handleClose();
+    } catch (err) {
+      toastError(err);
+    }
+    setLoading(false);
+  };
+
+  const blockedSince = () => {
+    if (!blocked?.since) return "";
+    try {
+      return format(new Date(blocked.since), "dd/MM HH:mm");
+    } catch (e) {
+      return "";
+    }
+  };
+
+  const blockedContactName =
+    blocked?.contactName || forcedContact?.name || i18n.t("common.contact");
 
   const handleSelectedContact = contactId => {
     if (contactId) {
@@ -98,7 +172,89 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
         onClose={handleCloseContactModal}
         onSave={handleAddNewContactTicket}
       />
-      <Dialog open={modalOpen} onClose={handleClose}>
+      <Dialog open={!!blocked} onClose={() => setBlocked(null)}>
+        <DialogTitle>
+          {blocked?.status === "open"
+            ? i18n.t("newTicketModal.blocked.titleOpen")
+            : i18n.t("newTicketModal.blocked.titlePending")}
+        </DialogTitle>
+        <DialogContent dividers>
+          <DialogContentText>
+            {blocked?.status === "open"
+              ? i18n.t("newTicketModal.blocked.withUser", {
+                  contact: blockedContactName,
+                  user: blocked?.userName || "?",
+                  since: blockedSince(),
+                  ...noEscape
+                })
+              : i18n.t("newTicketModal.blocked.pending", {
+                  contact: blockedContactName,
+                  since: blockedSince(),
+                  ...noEscape
+                })}
+          </DialogContentText>
+          <DialogContentText>
+            {blocked?.queueName
+              ? i18n.t("newTicketModal.blocked.queue", {
+                  queue: blocked.queueName,
+                  ...noEscape
+                })
+              : i18n.t("newTicketModal.blocked.noQueue")}
+            {blocked?.whatsappName
+              ? ` · ${i18n.t("newTicketModal.blocked.connection", {
+                  connection: blocked.whatsappName,
+                  ...noEscape
+                })}`
+              : ""}
+          </DialogContentText>
+          <DialogContentText>
+            {canAccept
+              ? i18n.t("newTicketModal.blocked.hintAccept")
+              : i18n.t("newTicketModal.blocked.hintRequest")}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setBlocked(null)}
+            color="secondary"
+            disabled={loading}
+            variant="outlined"
+          >
+            {i18n.t("newTicketModal.blocked.buttons.close")}
+          </Button>
+          {!canAccept && (
+            <ButtonWithSpinner
+              variant="outlined"
+              color="primary"
+              onClick={handleRequestTransfer}
+              loading={loading}
+            >
+              {i18n.t("newTicketModal.blocked.buttons.request")}
+            </ButtonWithSpinner>
+          )}
+          {canAccept && (
+            <ButtonWithSpinner
+              variant="contained"
+              color="primary"
+              onClick={handleAcceptBlocked}
+              loading={loading}
+            >
+              {i18n.t("newTicketModal.blocked.buttons.accept")}
+            </ButtonWithSpinner>
+          )}
+          {isAdmin && (
+            <Button
+              variant={canAccept ? "outlined" : "contained"}
+              color="primary"
+              onClick={openBlockedTicket}
+              disabled={loading}
+            >
+              {i18n.t("newTicketModal.blocked.buttons.open")}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
+      <Dialog open={modalOpen && !blocked} onClose={handleClose}>
         <DialogTitle id="form-dialog-title">
           {i18n.t("newTicketModal.title")}
         </DialogTitle>

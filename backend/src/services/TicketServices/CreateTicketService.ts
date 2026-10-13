@@ -1,11 +1,15 @@
+import { Op } from "sequelize";
 import AppError from "../../errors/AppError";
-import CheckContactOpenTickets from "../../helpers/CheckContactOpenTickets";
 import GetDefaultWhatsApp from "../../helpers/GetDefaultWhatsApp";
 import Ticket from "../../models/Ticket";
 import ShowContactService from "../ContactServices/ShowContactService";
 import { getIO } from "../../libs/socket";
 import FindOrCreateATicketTrakingService from "./FindOrCreateATicketTrakingService";
 import Contact from "../../models/Contact";
+import Queue from "../../models/Queue";
+import User from "../../models/User";
+import Whatsapp from "../../models/Whatsapp";
+import TicketTraking from "../../models/TicketTraking";
 import { incrementCounter } from "../CounterServices/IncrementCounter";
 
 interface Request {
@@ -15,6 +19,57 @@ interface Request {
   queueId?: number;
 }
 
+/**
+ * Linhares: a conversa nova e bloqueada se o contato ja tem ticket aberto ou
+ * pendente em QUALQUER conexao da empresa (antes so olhava a conexao padrao,
+ * e o cliente acabava com dois atendentes por dois numeros). O erro leva os
+ * detalhes de quem esta com o contato para o frontend oferecer as acoes
+ * (abrir, aceitar, pedir transferencia).
+ */
+const findBlockingTicket = async (contactId: number, companyId: number) =>
+  Ticket.findOne({
+    where: {
+      contactId,
+      companyId,
+      status: { [Op.or]: ["open", "pending"] }
+    },
+    include: [
+      { model: Contact, as: "contact", attributes: ["id", "name"] },
+      { model: User, as: "user", attributes: ["id", "name"] },
+      { model: Queue, as: "queue", attributes: ["id", "name"] },
+      { model: Whatsapp, as: "whatsapp", attributes: ["id", "name"] }
+    ],
+    order: [["updatedAt", "DESC"]]
+  });
+
+const describeBlockingTicket = async (
+  ticket: Ticket
+): Promise<Record<string, unknown>> => {
+  const traking = await TicketTraking.findOne({
+    where: { ticketId: ticket.id },
+    order: [["id", "DESC"]]
+  });
+
+  const since =
+    ticket.status === "open"
+      ? traking?.startedAt || ticket.updatedAt
+      : traking?.queuedAt || ticket.createdAt;
+
+  return {
+    ticketId: ticket.id,
+    uuid: ticket.uuid,
+    status: ticket.status,
+    contactName: ticket.contact?.name || null,
+    userId: ticket.userId || null,
+    userName: ticket.user?.name || null,
+    queueId: ticket.queueId || null,
+    queueName: ticket.queue?.name || null,
+    whatsappId: ticket.whatsappId,
+    whatsappName: ticket.whatsapp?.name || null,
+    since
+  };
+};
+
 const CreateTicketService = async ({
   contactId,
   userId,
@@ -23,11 +78,7 @@ const CreateTicketService = async ({
 }: Request): Promise<Ticket> => {
   const defaultWhatsapp = await GetDefaultWhatsApp(companyId);
 
-  let ticket = await CheckContactOpenTickets(
-    contactId,
-    defaultWhatsapp.id,
-    true
-  );
+  let ticket = await findBlockingTicket(contactId, companyId);
 
   const include = [
     {
@@ -48,7 +99,12 @@ const CreateTicketService = async ({
       });
       return ticket;
     }
-    throw new AppError("ERR_OTHER_OPEN_TICKET");
+    throw new AppError(
+      "ERR_OTHER_OPEN_TICKET",
+      400,
+      "warn",
+      await describeBlockingTicket(ticket)
+    );
   }
 
   const { isGroup } = await ShowContactService(contactId, companyId);

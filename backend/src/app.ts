@@ -101,7 +101,13 @@ app.use(Sentry.Handlers.errorHandler());
 app.use(async (err: Error, req: Request, res: Response, _: NextFunction) => {
   if (err instanceof AppError) {
     logger[err.level](err);
-    return res.status(err.statusCode).json({ error: err.message });
+    return res
+      .status(err.statusCode)
+      .json(
+        err.data
+          ? { error: err.message, data: err.data }
+          : { error: err.message }
+      );
   }
 
   logger.error(err);
