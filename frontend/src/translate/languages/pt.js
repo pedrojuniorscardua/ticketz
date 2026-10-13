@@ -479,7 +479,10 @@ const messages = {
         },
         notification: {
           message: "Mensagem de",
-          nomessages: "Sem novas mensagens"
+          nomessages: "Sem novas mensagens",
+          transferRequestTitle: "Pedido de transferência",
+          transferRequest:
+            "{{requester}} pediu a transferência do contato {{contact}}. Clique para abrir a conversa."
         },
         tabs: {
           open: { title: "Abertas" },
@@ -522,6 +525,29 @@ const messages = {
         buttons: {
           ok: "Salvar",
           cancel: "Cancelar"
+        },
+        blocked: {
+          titleOpen: "Contato já em atendimento",
+          titlePending: "Contato aguardando na fila",
+          withUser:
+            "{{contact}} está em atendimento com {{user}} desde {{since}}.",
+          pending: "{{contact}} está aguardando atendimento desde {{since}}.",
+          queue: "Fila: {{queue}}",
+          noQueue: "Sem fila",
+          connection: "Número: {{connection}}",
+          hintAccept:
+            "A conversa está na sua fila: aceite para atender você mesmo.",
+          hintRequest:
+            "Peça a transferência: quem está com o contato recebe um aviso e uma nota interna na conversa.",
+          requestSent: "Pedido de transferência enviado para {{user}}.",
+          requestSentAdmins:
+            "Pedido de transferência enviado aos administradores.",
+          buttons: {
+            close: "Fechar",
+            request: "Pedir transferência",
+            accept: "Aceitar e abrir",
+            open: "Abrir conversa"
+          }
         }
       },
       mainDrawer: {
@@ -1349,6 +1375,8 @@ const messages = {
         ERR_DELETE_WAPP_MSG: "Não foi possível excluir a mensagem do WhatsApp.",
         ERR_EDITING_WAPP_MSG: "Não foi possível editar a mensagem do WhatsApp.",
         ERR_OTHER_OPEN_TICKET: "Já existe um tíquete aberto para este contato.",
+        ERR_TICKET_NOT_ACTIVE: "Esta conversa não está mais aberta.",
+        ERR_TRANSFER_REQUEST_OWN_TICKET: "Esta conversa já está com você.",
         ERR_SESSION_EXPIRED: "Sessão expirada. Por favor entre.",
         ERR_USER_CREATION_DISABLED:
           "A criação do usuário foi desabilitada pelo administrador.",
