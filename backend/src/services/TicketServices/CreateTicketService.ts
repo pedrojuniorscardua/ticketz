@@ -11,6 +11,7 @@ import User from "../../models/User";
 import Whatsapp from "../../models/Whatsapp";
 import TicketTraking from "../../models/TicketTraking";
 import { incrementCounter } from "../CounterServices/IncrementCounter";
+import { getIndependentWhatsappIds } from "../../helpers/linharesIndependentWhatsapps";
 
 interface Request {
   contactId: number;
@@ -26,12 +27,27 @@ interface Request {
  * detalhes de quem esta com o contato para o frontend oferecer as acoes
  * (abrir, aceitar, pedir transferencia).
  */
-const findBlockingTicket = async (contactId: number, companyId: number) =>
-  Ticket.findOne({
+const findBlockingTicket = async (
+  contactId: number,
+  companyId: number,
+  targetWhatsappId: number
+) => {
+  // Linhares: conexão independente (ex.: FIXOLOJA do financeiro) não bloqueia
+  // nem é bloqueada pelas outras — só pelos próprios tickets.
+  const independentIds = await getIndependentWhatsappIds(companyId);
+  let whatsappFilter = {};
+  if (independentIds.includes(targetWhatsappId)) {
+    whatsappFilter = { whatsappId: targetWhatsappId };
+  } else if (independentIds.length) {
+    whatsappFilter = { whatsappId: { [Op.notIn]: independentIds } };
+  }
+
+  return Ticket.findOne({
     where: {
       contactId,
       companyId,
-      status: { [Op.or]: ["open", "pending"] }
+      status: { [Op.or]: ["open", "pending"] },
+      ...whatsappFilter
     },
     include: [
       { model: Contact, as: "contact", attributes: ["id", "name"] },
@@ -41,6 +57,7 @@ const findBlockingTicket = async (contactId: number, companyId: number) =>
     ],
     order: [["updatedAt", "DESC"]]
   });
+};
 
 const describeBlockingTicket = async (
   ticket: Ticket
@@ -78,7 +95,11 @@ const CreateTicketService = async ({
 }: Request): Promise<Ticket> => {
   const defaultWhatsapp = await GetDefaultWhatsApp(companyId);
 
-  let ticket = await findBlockingTicket(contactId, companyId);
+  let ticket = await findBlockingTicket(
+    contactId,
+    companyId,
+    defaultWhatsapp.id
+  );
 
   const include = [
     {
