@@ -24,6 +24,9 @@ interface Request {
   whatsappId?: number;
   // Linhares: quem está pedindo (para validar número de vendedor)
   requesterId?: number;
+  // Linhares: a pessoa já tem conversa aberta com o contato por outro número
+  // e confirmou que quer abrir outra pelo número escolhido
+  allowParallelOwn?: boolean;
 }
 
 /**
@@ -33,7 +36,7 @@ interface Request {
  * detalhes de quem esta com o contato para o frontend oferecer as acoes
  * (abrir, aceitar, pedir transferencia).
  */
-const findBlockingTicket = async (
+const findActiveTickets = async (
   contactId: number,
   companyId: number,
   targetWhatsappId: number
@@ -48,7 +51,7 @@ const findBlockingTicket = async (
     whatsappFilter = { whatsappId: { [Op.notIn]: independentIds } };
   }
 
-  return Ticket.findOne({
+  return Ticket.findAll({
     where: {
       contactId,
       companyId,
@@ -139,7 +142,8 @@ const CreateTicketService = async ({
   queueId,
   companyId,
   whatsappId,
-  requesterId
+  requesterId,
+  allowParallelOwn
 }: Request): Promise<Ticket> => {
   const defaultWhatsapp = await resolveWhatsapp(
     companyId,
@@ -147,7 +151,7 @@ const CreateTicketService = async ({
     requesterId
   );
 
-  let ticket = await findBlockingTicket(
+  const activeTickets = await findActiveTickets(
     contactId,
     companyId,
     defaultWhatsapp.id
@@ -165,24 +169,44 @@ const CreateTicketService = async ({
     "tags"
   ];
 
-  if (ticket) {
-    if (ticket.status === "open" && ticket.userId === userId) {
-      await ticket.reload({
-        include
-      });
-      return ticket;
-    }
+  const isOwnOpen = (t: Ticket) => t.status === "open" && t.userId === userId;
+
+  // 1. Já tem conversa aberta com o contato NESTA conexão: é ela.
+  const ownSameConnection = activeTickets.find(
+    t => isOwnOpen(t) && t.whatsappId === defaultWhatsapp.id
+  );
+  if (ownSameConnection) {
+    await ownSameConnection.reload({ include });
+    return ownSameConnection;
+  }
+
+  // 2. Contato com outra pessoa ou aguardando na fila: bloqueia (com detalhes).
+  const otherBlocking = activeTickets.find(t => !isOwnOpen(t));
+  if (otherBlocking) {
     throw new AppError(
       "ERR_OTHER_OPEN_TICKET",
       400,
       "warn",
-      await describeBlockingTicket(ticket)
+      await describeBlockingTicket(otherBlocking)
     );
+  }
+
+  // 3. Linhares: a própria pessoa tem conversa aberta com o contato por OUTRO
+  // número. Antes redirecionava em silêncio para ela; agora avisa e deixa
+  // escolher (abrir a existente ou abrir outra pelo número escolhido).
+  const ownOtherConnection = activeTickets.find(isOwnOpen);
+  if (ownOtherConnection && !allowParallelOwn) {
+    throw new AppError("ERR_OTHER_OPEN_TICKET", 400, "warn", {
+      ...(await describeBlockingTicket(ownOtherConnection)),
+      own: true,
+      targetWhatsappId: defaultWhatsapp.id,
+      targetWhatsappName: defaultWhatsapp.name
+    });
   }
 
   const { isGroup } = await ShowContactService(contactId, companyId);
 
-  ticket = await Ticket.create({
+  const ticket = await Ticket.create({
     contactId,
     companyId,
     queueId,
