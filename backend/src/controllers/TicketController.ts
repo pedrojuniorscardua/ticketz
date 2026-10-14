@@ -41,6 +41,8 @@ interface TicketData {
   userId: number;
   // Linhares: conexão escolhida na nova conversa (padrão da empresa se vazio)
   whatsappId?: number;
+  // Linhares: abrir outra conversa mesmo tendo uma própria em outro número
+  allowParallelOwn?: boolean;
 }
 
 const updateMutex = new Mutex();
@@ -174,7 +176,13 @@ export const kanban = async (
 };
 
 export const store = async (req: Request, res: Response): Promise<Response> => {
-  const { contactId, userId, queueId, whatsappId }: TicketData = req.body;
+  const {
+    contactId,
+    userId,
+    queueId,
+    whatsappId,
+    allowParallelOwn
+  }: TicketData = req.body;
   const { companyId } = req.user;
 
   const ticket = await CreateTicketService({
@@ -183,7 +191,8 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     companyId,
     queueId,
     whatsappId,
-    requesterId: Number(req.user.id)
+    requesterId: Number(req.user.id),
+    allowParallelOwn: allowParallelOwn === true
   });
 
   const io = getIO();
