@@ -62,13 +62,16 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
     } catch (e) {
       lastUsed = null;
     }
+    // Linhares: aberta a partir de uma conversa → o mesmo numero dela
+    const suggested = Number(contact?.whatsappId) || null;
     const preferred =
+      connections.find(w => w.id === suggested) ||
       connections.find(w => w.id === lastUsed) ||
       connections.find(w => w.isDefault) ||
       connections[0];
     setSelectedWhatsapp(preferred ? preferred.id : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modalOpen, whatsApps]);
+  }, [modalOpen, whatsApps, contact]);
 
   const handleClose = () => {
     onClose();
@@ -76,7 +79,7 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
     setBlocked(null);
   };
 
-  const handleSaveTicket = async contactId => {
+  const handleSaveTicket = async (contactId, allowParallelOwn = false) => {
     if (!contactId) return;
     if (selectedQueue === "" && user.profile !== "admin") {
       toast.error("Selecione uma fila");
@@ -91,8 +94,10 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
         queueId,
         userId: user.id,
         status: "open",
-        whatsappId
+        whatsappId,
+        allowParallelOwn
       });
+      setBlocked(null);
       if (whatsappId) {
         try {
           localStorage.setItem(LAST_WHATSAPP_KEY, String(whatsappId));
@@ -113,6 +118,9 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
   };
 
   const isAdmin = user.profile === "admin";
+
+  // Linhares: a conversa aberta com o contato e da propria pessoa, por outro numero
+  const isOwnBlocked = !!blocked?.own;
 
   const canAccept =
     !!blocked &&
@@ -202,7 +210,58 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
         onClose={handleCloseContactModal}
         onSave={handleAddNewContactTicket}
       />
-      <Dialog open={!!blocked} onClose={() => setBlocked(null)}>
+      <Dialog open={!!blocked && isOwnBlocked} onClose={() => setBlocked(null)}>
+        <DialogTitle>{i18n.t("newTicketModal.blocked.titleOwn")}</DialogTitle>
+        <DialogContent dividers>
+          <DialogContentText>
+            {i18n.t("newTicketModal.blocked.own", {
+              contact: blockedContactName,
+              connection: blocked?.whatsappName || "?",
+              since: blockedSince(),
+              ...noEscape
+            })}
+          </DialogContentText>
+          <DialogContentText>
+            {i18n.t("newTicketModal.blocked.hintOwn", {
+              target: blocked?.targetWhatsappName || "?",
+              ...noEscape
+            })}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setBlocked(null)}
+            color="secondary"
+            disabled={loading}
+            variant="outlined"
+          >
+            {i18n.t("newTicketModal.blocked.buttons.close")}
+          </Button>
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={openBlockedTicket}
+            disabled={loading}
+          >
+            {i18n.t("newTicketModal.blocked.buttons.openOwn")}
+          </Button>
+          <ButtonWithSpinner
+            variant="contained"
+            color="primary"
+            onClick={() => handleSaveTicket(selectedContact?.id, true)}
+            loading={loading}
+          >
+            {i18n.t("newTicketModal.blocked.buttons.newOnTarget", {
+              target: blocked?.targetWhatsappName || "?",
+              ...noEscape
+            })}
+          </ButtonWithSpinner>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={!!blocked && !isOwnBlocked}
+        onClose={() => setBlocked(null)}
+      >
         <DialogTitle>
           {blocked?.status === "open"
             ? i18n.t("newTicketModal.blocked.titleOpen")
