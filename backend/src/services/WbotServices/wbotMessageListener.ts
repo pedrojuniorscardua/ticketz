@@ -75,6 +75,7 @@ import { _t } from "../TranslationServices/i18nService";
 import WhatsappLidMap from "../../models/WhatsappLidMap";
 import sequelize from "../../database";
 import normalizePhone from "../../helpers/NormalizePhone";
+import { getIndependentWhatsappIds } from "../../helpers/linharesIndependentWhatsapps";
 
 export interface ImessageUpsert {
   messages: proto.IWebMessageInfo[];
@@ -196,10 +197,17 @@ const getCarteiraOwner = async (
 
     const contactId = ticket.contactId;
 
-    const tags =
-      ticket.contact?.tags ||
-      (await Contact.findByPk(contactId, { include: ["tags"] }))?.tags ||
-      [];
+    // Conexão independente (ex.: FIXOLOJA do financeiro): ignora a etiqueta
+    // Carteira e só considera o último atendente dela mesma; as demais
+    // conexões ignoram os tickets dela.
+    const independentIds = await getIndependentWhatsappIds(companyId);
+    const isIndependent = independentIds.includes(whatsapp.id);
+
+    const tags = isIndependent
+      ? []
+      : ticket.contact?.tags ||
+        (await Contact.findByPk(contactId, { include: ["tags"] }))?.tags ||
+        [];
     const carteiraNames = tags
       .map(t => /^\s*carteira\s+(.+?)\s*$/i.exec(t.name || "")?.[1])
       .filter(Boolean)
@@ -233,6 +241,13 @@ const getCarteiraOwner = async (
 
     // Ticket reaberto: o dono anterior já é o "último atendente" (a reabertura
     // zerou o userId, então ele não aparece na consulta abaixo).
+    let whatsappFilter = "";
+    if (isIndependent) {
+      whatsappFilter = `AND t."whatsappId" = :whatsappId`;
+    } else if (independentIds.length) {
+      whatsappFilter = `AND t."whatsappId" NOT IN (:independentIds)`;
+    }
+
     const rows = reopenedFromUserId
       ? [{ userId: reopenedFromUserId, queueId: ticket.queueId }]
       : await sequelize.query<{ userId: number; queueId: number }>(
@@ -246,10 +261,18 @@ const getCarteiraOwner = async (
               AND t.id <> :ticketId
               AND t."updatedAt" >= now() - make_interval(days => :days)
               AND u.profile = 'user'
+              ${whatsappFilter}
             ORDER BY t."updatedAt" DESC
             LIMIT 1`,
           {
-            replacements: { contactId, companyId, ticketId: ticket.id, days },
+            replacements: {
+              contactId,
+              companyId,
+              ticketId: ticket.id,
+              days,
+              whatsappId: whatsapp.id,
+              independentIds
+            },
             type: QueryTypes.SELECT
           }
         );
