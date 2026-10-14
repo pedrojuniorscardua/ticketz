@@ -201,22 +201,44 @@ const NotificationsPopOver = props => {
       `company-${companyId}-contact`,
       onCompanyContactNotificationsPopover
     );
-    // Linhares: outro atendente pediu a transferencia de um contato meu
+    // Linhares: outro atendente pediu a transferencia de um contato meu, ou
+    // transferiu uma conversa para mim (ela chega como nao lida)
     const onLinharesNotice = data => {
-      if (data?.action !== "transfer-request" || !data.ticket) return;
-      const text = i18n.t("tickets.notification.transferRequest", {
-        requester: data.requester?.name || "?",
-        contact: data.contact?.name || data.contact?.number || "?",
-        interpolation: { escapeValue: false }
-      });
+      if (!data?.ticket) return;
+      let title;
+      let text;
+      if (data.action === "transfer-request") {
+        title = i18n.t("tickets.notification.transferRequestTitle");
+        text = i18n.t("tickets.notification.transferRequest", {
+          requester: data.requester?.name || "?",
+          contact: data.contact?.name || data.contact?.number || "?",
+          interpolation: { escapeValue: false }
+        });
+      } else if (data.action === "transferred") {
+        if (data.ticket.userId !== user?.id) return;
+        title = i18n.t("tickets.notification.transferredTitle");
+        text = i18n.t("tickets.notification.transferred", {
+          from: data.from?.name || "?",
+          contact:
+            data.ticket.contact?.name || data.ticket.contact?.number || "?",
+          interpolation: { escapeValue: false }
+        });
+        setNotifications(prevState => [
+          data.ticket,
+          ...prevState.filter(t => t.id !== data.ticket.id)
+        ]);
+      } else {
+        return;
+      }
       const goToTicket = () =>
         historyRef.current.push(`/tickets/${data.ticket.uuid}`);
       toast.info(text, { autoClose: 15000, onClick: goToTicket });
       try {
-        const notification = new Notification(
-          i18n.t("tickets.notification.transferRequestTitle"),
-          { body: text, tag: `transfer-${data.ticket.id}`, renotify: true }
-        );
+        const notification = new Notification(title, {
+          body: text,
+          tag: `transfer-${data.ticket.id}`,
+          renotify: true
+        });
         notification.onclick = e => {
           e.preventDefault();
           window.focus();
