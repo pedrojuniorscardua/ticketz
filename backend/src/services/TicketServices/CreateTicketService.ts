@@ -1,4 +1,4 @@
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
 import AppError from "../../errors/AppError";
 import GetDefaultWhatsApp from "../../helpers/GetDefaultWhatsApp";
 import Ticket from "../../models/Ticket";
@@ -12,12 +12,18 @@ import Whatsapp from "../../models/Whatsapp";
 import TicketTraking from "../../models/TicketTraking";
 import { incrementCounter } from "../CounterServices/IncrementCounter";
 import { getIndependentWhatsappIds } from "../../helpers/linharesIndependentWhatsapps";
+import sequelize from "../../database";
+import { logger } from "../../utils/logger";
 
 interface Request {
   contactId: number;
   userId: number;
   companyId: number;
   queueId?: number;
+  // Linhares: conexão escolhida na nova conversa (padrão da empresa se vazio)
+  whatsappId?: number;
+  // Linhares: quem está pedindo (para validar número de vendedor)
+  requesterId?: number;
 }
 
 /**
@@ -87,13 +93,59 @@ const describeBlockingTicket = async (
   };
 };
 
+/**
+ * Linhares: conexão de saída da nova conversa. Se o frontend mandou uma,
+ * ela tem de ser da empresa e estar CONNECTED; número de vendedor
+ * (linhares_conexao_vendedor) só pelo próprio dono ou por admin.
+ * Sem escolha: conexão padrão da empresa, como sempre foi.
+ */
+const resolveWhatsapp = async (
+  companyId: number,
+  whatsappId: number | undefined,
+  requesterId: number | undefined
+): Promise<Whatsapp> => {
+  if (!whatsappId) return GetDefaultWhatsApp(companyId);
+
+  const whatsapp = await Whatsapp.findOne({
+    where: { id: whatsappId, companyId, channel: "whatsapp" }
+  });
+  if (!whatsapp) throw new AppError("ERR_NO_DEF_WAPP_FOUND", 404);
+  if (whatsapp.status !== "CONNECTED") {
+    throw new AppError("ERR_LINHARES_CONNECTION_OFFLINE", 400);
+  }
+
+  try {
+    const owners = await sequelize.query<{ userId: number }>(
+      `SELECT "userId" FROM linhares_conexao_vendedor WHERE "whatsappId" = :whatsappId`,
+      { replacements: { whatsappId }, type: QueryTypes.SELECT }
+    );
+    if (owners.length && owners[0].userId !== requesterId) {
+      const requester = requesterId ? await User.findByPk(requesterId) : null;
+      if (requester?.profile !== "admin") {
+        throw new AppError("ERR_LINHARES_VENDOR_CONNECTION", 403);
+      }
+    }
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    logger.debug({ error }, "linhares_conexao_vendedor unavailable");
+  }
+
+  return whatsapp;
+};
+
 const CreateTicketService = async ({
   contactId,
   userId,
   queueId,
-  companyId
+  companyId,
+  whatsappId,
+  requesterId
 }: Request): Promise<Ticket> => {
-  const defaultWhatsapp = await GetDefaultWhatsApp(companyId);
+  const defaultWhatsapp = await resolveWhatsapp(
+    companyId,
+    whatsappId,
+    requesterId
+  );
 
   let ticket = await findBlockingTicket(
     contactId,
