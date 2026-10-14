@@ -341,13 +341,34 @@ const UpdateTicketService = async ({
       ticketTraking.chatbotendAt = moment().toDate();
     }
 
+    // Linhares: conversa transferida por um atendente (para outro usuário ou
+    // para outra fila, aguardando) chega como NÃO LIDA, no topo da lista de
+    // quem recebe — zera quando ele abrir a conversa
+    const transferredToUserId =
+      user &&
+      userId &&
+      Number(userId) !== oldUserId &&
+      Number(userId) !== user.id
+        ? Number(userId)
+        : null;
+    const transferredToQueue =
+      !!user &&
+      !userId &&
+      status === "pending" &&
+      !!queueId &&
+      queueId !== oldQueueId;
+    const markUnread = !!transferredToUserId || transferredToQueue;
+
     await ticket.update({
       status,
       queueId,
       userId,
       whatsappId: ticket.whatsappId,
       chatbot,
-      queueOptionId
+      queueOptionId,
+      ...(markUnread && {
+        unreadMessages: Math.max(ticket.unreadMessages || 0, 1)
+      })
     });
 
     if (oldStatus !== status) {
@@ -492,6 +513,18 @@ const UpdateTicketService = async ({
     }
 
     websocketUpdateTicket(ticket, [`user-${oldUserId}`]);
+
+    // Linhares: avisa quem recebeu a conversa (toast + notificação + som)
+    if (transferredToUserId && ticket.userId === transferredToUserId) {
+      io.to(`user-${transferredToUserId}`).emit(
+        `company-${companyId}-linhares-notice`,
+        {
+          action: "transferred",
+          ticket,
+          from: { id: user.id, name: user.name }
+        }
+      );
+    }
 
     return { ticket, oldStatus, oldUserId };
   } catch (err) {
