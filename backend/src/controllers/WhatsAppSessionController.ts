@@ -25,6 +25,20 @@ import {
   StaleBaileysSessionError,
   withActiveBaileysSession
 } from "../services/WbotServices/BaileysSessionService";
+import Whatsapp from "../models/Whatsapp";
+
+// Linhares: StartWhatsAppSession only resolves when the connection opens, so
+// awaiting it kept the request hanging while the QR code was on screen and
+// nginx answered 504 after 60s. The QR code and the status reach the screen
+// through the socket, so the request can return right away.
+const startSessionInBackground = (whatsapp: Whatsapp, companyId: number) => {
+  StartWhatsAppSession(whatsapp, companyId).catch(err => {
+    logger.error(
+      { message: err?.message },
+      `Error starting session ${whatsapp.name}`
+    );
+  });
+};
 
 const store = async (req: Request, res: Response): Promise<Response> => {
   const { whatsappId } = req.params;
@@ -44,7 +58,7 @@ const store = async (req: Request, res: Response): Promise<Response> => {
     throw new AppError("ERR_INVALID_CHANNEL", 400);
   }
 
-  await StartWhatsAppSession(whatsapp, companyId);
+  startSessionInBackground(whatsapp, companyId);
 
   return res.status(200).json({ message: "Starting session." });
 };
@@ -60,7 +74,7 @@ const update = async (req: Request, res: Response): Promise<Response> => {
   });
 
   if (whatsapp.channel === "whatsapp") {
-    await StartWhatsAppSession(whatsapp, companyId);
+    startSessionInBackground(whatsapp, companyId);
   }
 
   return res.status(200).json({ message: "Starting session." });
