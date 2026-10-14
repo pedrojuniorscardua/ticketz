@@ -529,6 +529,8 @@ const messages = {
         title: "Criar Ticket",
         fieldLabel: "Digite para pesquisar o contato",
         add: "Adicionar",
+        connection: "Conexão (número de saída)",
+        defaultConnection: "padrão",
         buttons: {
           ok: "Salvar",
           cancel: "Cancelar"
@@ -1389,6 +1391,10 @@ const messages = {
         ERR_OTHER_OPEN_TICKET: "Já existe um tíquete aberto para este contato.",
         ERR_TICKET_NOT_ACTIVE: "Esta conversa não está mais aberta.",
         ERR_TRANSFER_REQUEST_OWN_TICKET: "Esta conversa já está com você.",
+        ERR_LINHARES_CONNECTION_OFFLINE:
+          "A conexão escolhida não está conectada. Escolha outra ou verifique a página de conexões.",
+        ERR_LINHARES_VENDOR_CONNECTION:
+          "Esse número é de outro vendedor. Escolha outra conexão.",
         ERR_SESSION_EXPIRED: "Sessão expirada. Por favor entre.",
         ERR_USER_CREATION_DISABLED:
           "A criação do usuário foi desabilitada pelo administrador.",

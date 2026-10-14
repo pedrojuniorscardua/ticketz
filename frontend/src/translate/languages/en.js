@@ -531,6 +531,8 @@ const messages = {
         title: "Create Ticket",
         fieldLabel: "Type to search for contact",
         add: "Add",
+        connection: "Connection (outgoing number)",
+        defaultConnection: "default",
         buttons: {
           ok: "Save",
           cancel: "Cancel"
@@ -1384,6 +1386,10 @@ const messages = {
           "There is already an open ticket for this contact.",
         ERR_TICKET_NOT_ACTIVE: "This ticket is no longer open.",
         ERR_TRANSFER_REQUEST_OWN_TICKET: "This ticket is already yours.",
+        ERR_LINHARES_CONNECTION_OFFLINE:
+          "The chosen connection is offline. Pick another one or check the connections page.",
+        ERR_LINHARES_VENDOR_CONNECTION:
+          "That number belongs to another salesperson. Pick another connection.",
         ERR_SESSION_EXPIRED: "Session expired. Please log in.",
         ERR_USER_CREATION_DISABLED:
           "User creation has been disabled by the administrator.",
