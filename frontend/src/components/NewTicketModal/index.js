@@ -12,6 +12,7 @@ import ButtonWithSpinner from "../ButtonWithSpinner";
 import ContactModal from "../ContactModal";
 import toastError from "../../errors/toastError";
 import { AuthContext } from "../../context/Auth/AuthContext";
+import { WhatsAppsContext } from "../../context/WhatsApp/WhatsAppsContext";
 import {
   Grid,
   ListItemText,
@@ -25,6 +26,7 @@ import { toast } from "react-toastify";
 import { ContactSelect } from "../ContactSelect";
 
 const noEscape = { interpolation: { escapeValue: false } };
+const LAST_WHATSAPP_KEY = "linharesNewTicketWhatsappId";
 
 const NewTicketModal = ({ modalOpen, onClose, contact }) => {
   const [selectedContact, setSelectedContact] = useState(null);
@@ -36,6 +38,12 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
   // Linhares: contato ja esta com outro atendente ou aguardando numa fila
   const [blocked, setBlocked] = useState(null);
   const { user } = useContext(AuthContext);
+  // Linhares: conexao (numero de saida) da nova conversa
+  const { whatsApps } = useContext(WhatsAppsContext);
+  const [selectedWhatsapp, setSelectedWhatsapp] = useState("");
+  const connections = (whatsApps || []).filter(
+    w => w.status === "CONNECTED" && (!w.channel || w.channel === "whatsapp")
+  );
 
   useEffect(() => {
     if (contact) {
@@ -47,7 +55,20 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
   useEffect(() => {
     setSelectedQueue("");
     setBlocked(null);
-  }, [modalOpen]);
+    if (!modalOpen) return;
+    let lastUsed = null;
+    try {
+      lastUsed = Number(localStorage.getItem(LAST_WHATSAPP_KEY)) || null;
+    } catch (e) {
+      lastUsed = null;
+    }
+    const preferred =
+      connections.find(w => w.id === lastUsed) ||
+      connections.find(w => w.isDefault) ||
+      connections[0];
+    setSelectedWhatsapp(preferred ? preferred.id : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalOpen, whatsApps]);
 
   const handleClose = () => {
     onClose();
@@ -64,12 +85,21 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
     setLoading(true);
     try {
       const queueId = selectedQueue !== "" ? selectedQueue : null;
+      const whatsappId = selectedWhatsapp !== "" ? selectedWhatsapp : null;
       const { data: ticket } = await api.post("/tickets", {
         contactId: contactId,
         queueId,
         userId: user.id,
-        status: "open"
+        status: "open",
+        whatsappId
       });
+      if (whatsappId) {
+        try {
+          localStorage.setItem(LAST_WHATSAPP_KEY, String(whatsappId));
+        } catch (e) {
+          // armazenamento indisponivel: segue sem lembrar a escolha
+        }
+      }
       onClose(ticket);
     } catch (err) {
       const response = err?.response?.data;
@@ -321,6 +351,48 @@ const NewTicketModal = ({ modalOpen, onClose, contact }) => {
                 </Select>
               </FormControl>
             </Grid>
+            {connections.length > 1 && (
+              <Grid xs={12} item>
+                <FormControl fullWidth variant="outlined" margin="dense">
+                  <InputLabel id="whatsapp-label">
+                    {i18n.t("newTicketModal.connection")}
+                  </InputLabel>
+                  <Select
+                    fullWidth
+                    variant="outlined"
+                    margin="dense"
+                    labelId="whatsapp-label"
+                    value={selectedWhatsapp || ""}
+                    label={i18n.t("newTicketModal.connection")}
+                    onChange={e => setSelectedWhatsapp(e.target.value)}
+                    MenuProps={{
+                      anchorOrigin: {
+                        vertical: "bottom",
+                        horizontal: "left"
+                      },
+                      transformOrigin: {
+                        vertical: "top",
+                        horizontal: "left"
+                      },
+                      getContentAnchorEl: null
+                    }}
+                  >
+                    {connections.map(w => (
+                      <MenuItem dense key={w.id} value={w.id}>
+                        <ListItemText
+                          primary={w.name}
+                          secondary={
+                            w.isDefault
+                              ? i18n.t("newTicketModal.defaultConnection")
+                              : null
+                          }
+                        />
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions>
