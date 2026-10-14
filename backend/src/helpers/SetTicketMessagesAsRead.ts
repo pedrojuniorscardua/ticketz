@@ -7,6 +7,9 @@ import { logger } from "../utils/logger";
 import GetTicketWbot from "./GetTicketWbot";
 
 const SetTicketMessagesAsRead = async (ticket: Ticket): Promise<void> => {
+  // Linhares: conversa transferida fica "não lida" sem mensagem pendente no
+  // banco; ao abrir, a lista também precisa saber que zerou
+  const hadUnread = ticket.unreadMessages > 0;
   await ticket.update({ unreadMessages: 0 }, { silent: true });
   let companyId: number;
 
@@ -114,8 +117,12 @@ const SetTicketMessagesAsRead = async (ticket: Ticket): Promise<void> => {
   }
 
   const io = getIO();
+  if (!companyId && hadUnread) {
+    companyId = ticket.companyId;
+  }
   if (companyId) {
     io.to(ticket.id.toString())
+      .to(`user-${ticket.userId}`)
       .to(`company-${companyId}-${ticket.status}`)
       .to(`queue-${ticket.queueId}-${ticket.status}`)
       .emit(`company-${companyId}-ticket`, {

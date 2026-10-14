@@ -490,7 +490,10 @@ const messages = {
           nomessages: "No messages",
           transferRequestTitle: "Transfer request",
           transferRequest:
-            "{{requester}} asked to transfer contact {{contact}}. Click to open the ticket."
+            "{{requester}} asked to transfer contact {{contact}}. Click to open the ticket.",
+          transferredTitle: "Ticket transferred to you",
+          transferred:
+            "{{from}} transferred the conversation with {{contact}} to you. Click to reply."
         },
         tabs: {
           open: { title: "Open" },

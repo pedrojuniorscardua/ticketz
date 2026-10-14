@@ -489,7 +489,10 @@ const messages = {
           nomessages: "Sem novas mensagens",
           transferRequestTitle: "Pedido de transferência",
           transferRequest:
-            "{{requester}} pediu a transferência do contato {{contact}}. Clique para abrir a conversa."
+            "{{requester}} pediu a transferência do contato {{contact}}. Clique para abrir a conversa.",
+          transferredTitle: "Conversa transferida para você",
+          transferred:
+            "{{from}} transferiu para você a conversa com {{contact}}. Clique para responder."
         },
         tabs: {
           open: { title: "Abertas" },
