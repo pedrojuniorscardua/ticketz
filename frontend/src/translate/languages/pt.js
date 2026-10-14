@@ -554,11 +554,17 @@ const messages = {
           requestSent: "Pedido de transferência enviado para {{user}}.",
           requestSentAdmins:
             "Pedido de transferência enviado aos administradores.",
+          titleOwn: "Você já tem uma conversa aberta com este contato",
+          own: "{{contact}} já está com você pelo número {{connection}} desde {{since}}.",
+          hintOwn:
+            "Abra essa conversa ou, se precisa falar pelo número {{target}}, abra outra por ele.",
           buttons: {
             close: "Fechar",
             request: "Pedir transferência",
             accept: "Aceitar e abrir",
-            open: "Abrir conversa"
+            open: "Abrir conversa",
+            openOwn: "Abrir essa conversa",
+            newOnTarget: "Abrir nova pelo {{target}}"
           }
         }
       },
