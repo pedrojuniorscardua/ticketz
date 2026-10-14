@@ -413,7 +413,9 @@ const LoggedInLayout = ({ children, themeToggle }) => {
       const contact = {
         id: mention.contactId || mention.id,
         name: mention.name,
-        number: mention.number
+        number: mention.number,
+        // Linhares: conexao sugerida (ex.: a da conversa de onde se abriu)
+        whatsappId: mention.whatsappId || null
       };
       setNewTicketContact(contact);
     };

@@ -547,11 +547,17 @@ const messages = {
             "Ask for a transfer: the current agent gets a notice and an internal note.",
           requestSent: "Transfer request sent to {{user}}.",
           requestSentAdmins: "Transfer request sent to the admins.",
+          titleOwn: "You already have an open ticket with this contact",
+          own: "{{contact}} is already with you on {{connection}} since {{since}}.",
+          hintOwn:
+            "Open that ticket or, if you need to use {{target}}, open another one there.",
           buttons: {
             close: "Close",
             request: "Request transfer",
             accept: "Accept and open",
-            open: "Open ticket"
+            open: "Open ticket",
+            openOwn: "Open that ticket",
+            newOnTarget: "Open new on {{target}}"
           }
         }
       },

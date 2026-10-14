@@ -112,7 +112,9 @@ const TicketActionButtonsCustom = ({ ticket, showTabGroups }) => {
                 window.mentionClick({
                   contactId: ticket.contactId,
                   name: ticket.contact?.name,
-                  number: ticket.contact?.number
+                  number: ticket.contact?.number,
+                  // Linhares: nova conversa sai pelo mesmo numero desta
+                  whatsappId: ticket.whatsappId
                 })
               }
             >
