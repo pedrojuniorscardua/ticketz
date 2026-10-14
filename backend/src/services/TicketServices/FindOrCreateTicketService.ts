@@ -14,6 +14,15 @@ import AppError from "../../errors/AppError";
 
 const createTicketMutex = new Mutex();
 
+export type FindOrCreateTicketResult = {
+  ticket: Ticket;
+  justCreated: boolean;
+  // Linhares: ticket fechado que esta mensagem reabriu (autoReopenTimeout)
+  justReopened?: boolean;
+  // Linhares: quem atendia o ticket antes de ser reaberto (a reabertura zera o dono)
+  reopenedFromUserId?: number | null;
+};
+
 type FindOrCreateTicketOptions = {
   groupContact?: Contact;
   incrementUnread?: boolean;
@@ -33,8 +42,10 @@ const internalFindOrCreateTicketService = async (
     findOnly,
     queue
   }: FindOrCreateTicketOptions = {}
-): Promise<{ ticket: Ticket; justCreated: boolean }> => {
+): Promise<FindOrCreateTicketResult> => {
   let justCreated = false;
+  let justReopened = false;
+  let reopenedFromUserId: number | null = null;
   const result = await sequelize.transaction(async () => {
     // Defense in depth: a group contact must always belong to the same company
     // as the ticket being created. A cross-company group contact would leak
@@ -108,6 +119,8 @@ const internalFindOrCreateTicketService = async (
         }));
 
       if (ticket) {
+        justReopened = true;
+        reopenedFromUserId = ticket.userId || null;
         await ticket.update({
           status: "pending",
           userId: null,
@@ -164,7 +177,7 @@ const internalFindOrCreateTicketService = async (
 
     ticket = await ShowTicketService(ticket.id, companyId);
 
-    return { ticket, justCreated };
+    return { ticket, justCreated, justReopened, reopenedFromUserId };
   });
 
   if (result.justCreated) {
@@ -179,7 +192,7 @@ const FindOrCreateTicketService = async (
   whatsappId: number,
   companyId: number,
   options: FindOrCreateTicketOptions = {}
-): Promise<{ ticket: Ticket; justCreated: boolean }> => {
+): Promise<FindOrCreateTicketResult> => {
   const release = await createTicketMutex.acquire();
 
   try {

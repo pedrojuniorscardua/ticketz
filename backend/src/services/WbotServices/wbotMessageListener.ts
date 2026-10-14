@@ -148,6 +148,166 @@ const assignToConnectionOwner = async (
   });
 };
 
+type CarteiraOwner = ConnectionOwner & { source: string };
+
+/**
+ * Linhares: fila em que o ticket deve ficar para que o dono (perfil "user")
+ * o veja na lista — a lista só mostra tickets das filas do próprio usuário.
+ * Preferência: a fila atual do ticket (se o dono está nela), depois uma fila
+ * do dono que também é da conexão, depois qualquer fila do dono.
+ */
+const pickQueueForOwner = (
+  user: User,
+  whatsapp: Whatsapp,
+  currentQueueId: number | null
+): number | null => {
+  const userQueueIds = (user.queues || []).map(q => q.id);
+  if (!userQueueIds.length) return null;
+  if (currentQueueId && userQueueIds.includes(currentQueueId)) {
+    return currentQueueId;
+  }
+  const whatsappQueueIds = (whatsapp.queues || []).map(q => q.id);
+  const shared = userQueueIds.find(id => whatsappQueueIds.includes(id));
+  return shared || userQueueIds[0];
+};
+
+/**
+ * Linhares: "carteira" — numa conexão compartilhada, o cliente volta para o
+ * vendedor dele em vez de cair na fila para qualquer um. Prioridade:
+ *   1. etiqueta "Carteira <Nome>" no contato (carga da Mega) → usuário <Nome>;
+ *   2. último atendente (perfil "user") de um ticket fechado do contato nos
+ *      últimos N dias (setting linharesLastAgentDays, padrão 90; "0" desliga).
+ * Setting linharesCarteiraRouting = "disabled" desliga tudo sem deploy.
+ * Devolve null quando não há dono válido (ou ele não tem fila): fluxo normal.
+ */
+const getCarteiraOwner = async (
+  ticket: Ticket,
+  whatsapp: Whatsapp,
+  companyId: number,
+  reopenedFromUserId: number | null = null
+): Promise<CarteiraOwner | null> => {
+  try {
+    const enabled = await GetCompanySetting(
+      companyId,
+      "linharesCarteiraRouting",
+      "enabled"
+    );
+    if (enabled === "disabled") return null;
+
+    const contactId = ticket.contactId;
+
+    const tags =
+      ticket.contact?.tags ||
+      (await Contact.findByPk(contactId, { include: ["tags"] }))?.tags ||
+      [];
+    const carteiraNames = tags
+      .map(t => /^\s*carteira\s+(.+?)\s*$/i.exec(t.name || "")?.[1])
+      .filter(Boolean)
+      .map(n => n.toLowerCase());
+
+    if (carteiraNames.length) {
+      const users = await User.findAll({
+        where: { companyId, super: false },
+        include: ["queues"]
+      });
+      const owner = users.find(u =>
+        carteiraNames.includes((u.name || "").trim().toLowerCase())
+      );
+      if (owner) {
+        const queueId = pickQueueForOwner(owner, whatsapp, ticket.queueId);
+        if (queueId) {
+          return { userId: owner.id, queueId, source: "carteira" };
+        }
+        logger.warn(
+          { ticketId: ticket.id, userId: owner.id },
+          "linhares carteira: dono sem fila, seguindo fluxo normal"
+        );
+      }
+    }
+
+    const days = parseInt(
+      await GetCompanySetting(companyId, "linharesLastAgentDays", "90"),
+      10
+    );
+    if (!days || days < 0) return null;
+
+    // Ticket reaberto: o dono anterior já é o "último atendente" (a reabertura
+    // zerou o userId, então ele não aparece na consulta abaixo).
+    const rows = reopenedFromUserId
+      ? [{ userId: reopenedFromUserId, queueId: ticket.queueId }]
+      : await sequelize.query<{ userId: number; queueId: number }>(
+          `SELECT t."userId", t."queueId"
+             FROM "Tickets" t
+             JOIN "Users" u ON u.id = t."userId"
+            WHERE t."contactId" = :contactId
+              AND t."companyId" = :companyId
+              AND t."isGroup" = false
+              AND t.status = 'closed'
+              AND t.id <> :ticketId
+              AND t."updatedAt" >= now() - make_interval(days => :days)
+              AND u.profile = 'user'
+            ORDER BY t."updatedAt" DESC
+            LIMIT 1`,
+          {
+            replacements: { contactId, companyId, ticketId: ticket.id, days },
+            type: QueryTypes.SELECT
+          }
+        );
+    if (!rows.length) return null;
+
+    const lastUser = await User.findByPk(rows[0].userId, {
+      include: ["queues"]
+    });
+    if (!lastUser || lastUser.profile !== "user") return null;
+    const queueId = pickQueueForOwner(
+      lastUser,
+      whatsapp,
+      ticket.queueId || rows[0].queueId
+    );
+    if (!queueId) return null;
+    return { userId: lastUser.id, queueId, source: "ultimo-atendente" };
+  } catch (error) {
+    logger.error({ error, ticketId: ticket.id }, "linhares carteira: erro");
+    return null;
+  }
+};
+
+/**
+ * Linhares: entrega o ticket ao dono da carteira — aberto, atribuído e na fila
+ * escolhida (substitui a fila do ticket, senão o dono pode não vê-lo).
+ * Em dois passos porque o Ticketz só deixa admin aceitar ticket sem fila.
+ */
+const assignToCarteiraOwner = async (ticket: Ticket, owner: CarteiraOwner) => {
+  if (ticket.status === "closed") return;
+  if (ticket.status === "open" && ticket.userId) return;
+
+  if (ticket.queueId !== owner.queueId) {
+    await updateTicket(ticket, {
+      queueId: owner.queueId,
+      queueOptionId: null,
+      chatbot: false
+    });
+  }
+
+  await updateTicket(ticket, {
+    status: "open",
+    userId: owner.userId,
+    queueId: owner.queueId,
+    chatbot: false
+  });
+
+  logger.info(
+    {
+      ticketId: ticket.id,
+      contactId: ticket.contactId,
+      userId: owner.userId,
+      queueId: owner.queueId,
+      source: owner.source
+    },
+    "linhares carteira: ticket entregue ao dono"
+  );
+};
+
 const getTypeMessage = (msg: proto.IWebMessageInfo): string => {
   return getContentType(msg.message);
 };
@@ -2063,19 +2223,15 @@ const handleMessage = async (
       defaultQueue = await Queue.findByPk(whatsapp.queues[0].id);
     }
 
-    const { ticket, justCreated } = await FindOrCreateTicketService(
-      contact,
-      wbot.id!,
-      companyId,
-      {
+    const { ticket, justCreated, justReopened, reopenedFromUserId } =
+      await FindOrCreateTicketService(contact, wbot.id!, companyId, {
         groupContact,
         incrementUnread: !msg.key.fromMe,
         findOnly,
         queue: queueId
           ? (await Queue.findByPk(queueId)) || defaultQueue
           : defaultQueue
-      }
-    );
+      });
 
     if (!ticket) {
       return;
@@ -2192,6 +2348,28 @@ const handleMessage = async (
         websocketCreateMessage(newMessage);
       }
       return;
+    }
+
+    // Linhares: carteira — só quando ESTA mensagem do cliente criou (ou
+    // reabriu) o ticket; ticket devolvido à fila pelo atendente não volta
+    // sozinho para ele. Depois segue o fluxo normal (fora do expediente etc.),
+    // mas sem menu, porque o ticket já tem dono e fila.
+    if (
+      !isGroup &&
+      !msg.key.fromMe &&
+      (justCreated || justReopened) &&
+      ticket.status !== "closed" &&
+      !(ticket.status === "open" && ticket.userId)
+    ) {
+      const carteiraOwner = await getCarteiraOwner(
+        ticket,
+        whatsapp,
+        companyId,
+        reopenedFromUserId || null
+      );
+      if (carteiraOwner) {
+        await assignToCarteiraOwner(ticket, carteiraOwner);
+      }
     }
 
     if (isGroup || contact.disableBot || msg.key.fromMe) {
