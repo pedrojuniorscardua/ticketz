@@ -240,7 +240,9 @@ function Thumbnail({ url, onOpen }) {
           // Only fetch what's needed for page 1 – don't pre-load the whole file.
           disableAutoFetch: true,
           disableStream: true,
-          rangeChunkSize: 65536 // 64 KB chunks
+          rangeChunkSize: 65536, // 64 KB chunks
+          // Linhares: PDF de cliente nao pode executar JS (CVE-2024-4367)
+          isEvalSupported: false
         }).promise;
         if (cancelled) {
           pdf.destroy();
@@ -335,7 +337,9 @@ function PdfViewerDialog({ url, fileName, open, onClose }) {
         const pdf = await getDocument({
           url,
           disableAutoFetch: true, // don't bulk-download; fetch chunks on demand
-          rangeChunkSize: 65536 // 64 KB per range request
+          rangeChunkSize: 65536, // 64 KB per range request
+          // Linhares: PDF de cliente nao pode executar JS (CVE-2024-4367)
+          isEvalSupported: false
         }).promise;
         if (cancelled) {
           pdf.destroy();
