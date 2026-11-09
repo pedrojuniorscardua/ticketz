@@ -76,6 +76,10 @@ import WhatsappLidMap from "../../models/WhatsappLidMap";
 import sequelize from "../../database";
 import normalizePhone from "../../helpers/NormalizePhone";
 import { getIndependentWhatsappIds } from "../../helpers/linharesIndependentWhatsapps";
+import {
+  getLinharesProbeId,
+  registerLinharesProbe
+} from "../../helpers/linharesProbe";
 
 export interface ImessageUpsert {
   messages: proto.IWebMessageInfo[];
@@ -2032,6 +2036,20 @@ const handleMessage = async (
 
     const bodyMessage = await getBodyMessage(msg?.message);
     const msgType = getTypeMessage(msg);
+
+    // Linhares: sonda do monitor de conex\u00f5es \u2014 registra a chegada e para
+    // aqui (n\u00e3o cria contato, ticket nem mensagem). Ver helpers/linharesProbe.
+    const probeId = !isGroup && getLinharesProbeId(bodyMessage);
+    if (probeId) {
+      if (!msg.key.fromMe) {
+        await registerLinharesProbe(
+          wbot.id,
+          probeId,
+          msg.key?.sender_pn || msg.key?.remoteJid || null
+        );
+      }
+      return;
+    }
 
     const unpackedMessage = getUnpackedMessage(msg);
     const messageMedia = unpackedMessage && getMessageMedia(unpackedMessage);
