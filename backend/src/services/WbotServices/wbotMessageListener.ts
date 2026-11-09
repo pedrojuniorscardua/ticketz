@@ -17,7 +17,8 @@ import {
   WAGenericMediaMessage,
   WALocationMessage,
   WAMessageStatus,
-  WAMessageKey
+  WAMessageKey,
+  MessageUserReceiptUpdate
 } from "libzapitu-rf";
 import { Mutex } from "async-mutex";
 import { Op, QueryTypes } from "sequelize";
@@ -490,7 +491,8 @@ export const getBodyMessage = async (msg: proto.IMessage): Promise<string> => {
     }
 
     // eslint-disable-next-line no-restricted-syntax
-    for (const mention of (msg[type] as any)?.contextInfo?.mentionedJid ?? []) {
+    for (const mention of (msg[type] as { contextInfo?: proto.IContextInfo })
+      ?.contextInfo?.mentionedJid ?? []) {
       body = await processMention(body, mention);
     }
 
@@ -762,7 +764,10 @@ const downloadMedia = async (
       await new Promise(resolve => {
         setTimeout(resolve, 1000 * contDownload * 2);
       });
-      logger.warn({ msg }, `>>>> erro ${contDownload} de baixar o arquivo`);
+      logger.warn(
+        { msg, error: error?.message },
+        `>>>> erro ${contDownload} de baixar o arquivo`
+      );
     }
   }
 
@@ -2778,18 +2783,21 @@ const wbotMessageListener = async (
       });
     });
 
-    wbot.ev.on("message-receipt.update", async (messageReceipt: any) => {
-      logger.trace(
-        { messageReceipt },
-        "wbotMessageListener: message-receipt.update"
-      );
-      if (messageReceipt.length === 0) return;
-      messageReceipt.forEach(async (receipt: any) => {
-        await ackMutex.runExclusive(async () => {
-          handleMsgAck(receipt.key.id, wbot.id, { status: 2 });
+    wbot.ev.on(
+      "message-receipt.update",
+      async (messageReceipt: MessageUserReceiptUpdate[]) => {
+        logger.trace(
+          { messageReceipt },
+          "wbotMessageListener: message-receipt.update"
+        );
+        if (messageReceipt.length === 0) return;
+        messageReceipt.forEach(async (receipt: MessageUserReceiptUpdate) => {
+          await ackMutex.runExclusive(async () => {
+            handleMsgAck(receipt.key.id, wbot.id, { status: 2 });
+          });
         });
-      });
-    });
+      }
+    );
 
     wbot.ev.on("messages.update", (messageUpdate: WAMessageUpdate[]) => {
       logger.trace({ messageUpdate }, "wbotMessageListener: messages.update");
