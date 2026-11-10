@@ -1209,7 +1209,8 @@ const messages = {
           title: "Translations"
         },
         AIProvider: {
-          title: "AI Provider"
+          title: "AI Provider",
+          local: "Local Whisper (no key)"
         },
         AudioTranscriptions: {
           title: "Audio Transcriptions"

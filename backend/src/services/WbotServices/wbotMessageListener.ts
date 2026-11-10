@@ -64,7 +64,11 @@ import { SimpleObjectCache } from "../../helpers/simpleObjectCache";
 import { getPublicPath } from "../../helpers/GetPublicPath";
 import { Session } from "../../libs/wbot";
 import { checkCompanyCompliant } from "../../helpers/CheckCompanyCompliant";
-import { transcriber } from "../../helpers/transcriber";
+import {
+  LOCAL_TRANSCRIBER_PROVIDER,
+  transcriber
+} from "../../helpers/transcriber";
+import { queueLocalTranscription } from "../../helpers/linharesLocalTranscription";
 import { parseToMilliseconds } from "../../helpers/parseToMilliseconds";
 import { randomValue } from "../../helpers/randomValue";
 import { getJidOf } from "./getJidOf";
@@ -966,6 +970,7 @@ export const verifyMediaMessage = async (
   const filename = mediaInfo?.filename || media?.filename || "file.bin";
 
   let body = await getBodyMessage(msg?.message);
+  let transcribeLocally = false;
 
   if (
     mediaType === "audio" &&
@@ -982,7 +987,11 @@ export const verifyMediaMessage = async (
       "openai"
     );
 
-    if (apiKey) {
+    if (provider === LOCAL_TRANSCRIBER_PROVIDER) {
+      // Linhares: Whisper local — so audio recebido, e depois de gravar a
+      // mensagem (ver helpers/linharesLocalTranscription)
+      transcribeLocally = !msg.key.fromMe && !!mediaUrl;
+    } else if (apiKey) {
       try {
         const audioTranscription = await transcriber(
           mediaUrl.startsWith("http")
@@ -1030,6 +1039,18 @@ export const verifyMediaMessage = async (
     companyId: ticket.companyId,
     skipWebsocket
   });
+
+  if (transcribeLocally) {
+    queueLocalTranscription({
+      messageId: newMessage.id,
+      ticketId: ticket.id,
+      companyId: ticket.companyId,
+      audioPath: mediaUrl.startsWith("http")
+        ? mediaUrl
+        : `${getPublicPath()}/${mediaUrl}`,
+      filename
+    });
+  }
 
   if (!msg.key.fromMe && ticket.status === "closed") {
     await updateTicket(ticket, { status: "pending" });

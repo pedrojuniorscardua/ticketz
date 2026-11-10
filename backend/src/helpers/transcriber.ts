@@ -37,8 +37,21 @@ const providerConfig: Record<string, providerOptions> = {
   groq: {
     baseURL: "https://api.groq.com/openai/v1",
     model: "whisper-large-v3-turbo"
+  },
+  // Linhares: Whisper rodando na propria stack (container "whisper", API
+  // compativel com a da OpenAI). O audio nao sai do servidor e nao ha chave.
+  local: {
+    baseURL: process.env.LINHARES_WHISPER_URL || "http://whisper:8000/v1",
+    model:
+      process.env.LINHARES_WHISPER_MODEL ||
+      "deepdml/faster-whisper-large-v3-turbo-ct2"
   }
 };
+
+export const LOCAL_TRANSCRIBER_PROVIDER = "local";
+
+const localLanguage = process.env.LINHARES_WHISPER_LANGUAGE || "pt";
+const localTimeoutMs = 5 * 60 * 1000;
 
 /**
  * Transcribes audio using OpenAI's Whisper model.
@@ -57,13 +70,16 @@ export const transcriber = async (
     throw new AppError("No audio file provided");
   }
 
-  if (!apiKey) {
+  const isLocal = provider === LOCAL_TRANSCRIBER_PROVIDER;
+
+  if (!apiKey && !isLocal) {
     throw new AppError("No OpenAI API key provided");
   }
 
   const openai = new OpenAI({
     baseURL: providerConfig[provider]?.baseURL || undefined,
-    apiKey
+    apiKey: apiKey || "local",
+    ...(isLocal ? { timeout: localTimeoutMs, maxRetries: 0 } : {})
   });
 
   const extension = filename?.split(".").pop() || "ogg";
@@ -94,7 +110,8 @@ export const transcriber = async (
   try {
     const transcription = await openai.audio.transcriptions.create({
       file: audio,
-      model: providerConfig[provider]?.model || "whisper-1"
+      model: providerConfig[provider]?.model || "whisper-1",
+      ...(isLocal ? { language: localLanguage } : {})
     });
 
     return transcription.text;
