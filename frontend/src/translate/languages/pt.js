@@ -1211,7 +1211,8 @@ const messages = {
           title: "Traduções"
         },
         AIProvider: {
-          title: "Serviço de IA"
+          title: "Serviço de IA",
+          local: "Whisper local (sem chave)"
         },
         AudioTranscriptions: {
           title: "Transcrição de áudio"
