@@ -1303,6 +1303,9 @@ export default function Options(props) {
             >
               <MenuItem value="openai">OpenAI</MenuItem>
               <MenuItem value="groq">Groq</MenuItem>
+              <MenuItem value="local">
+                {i18n.t("settings.AIProvider.local")}
+              </MenuItem>
             </Select>
           </FormControl>
         </Grid>
