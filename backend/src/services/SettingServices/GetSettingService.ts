@@ -17,7 +17,10 @@ export const safeSettingsKeys = {
   soundGroupNotifications: "disabled",
   tagsMode: "ticket",
   allowSilentlyClose: "enabled",
-  allowSpy: "disabled"
+  allowSpy: "disabled",
+  // Linhares: o frontend (useSettings/TicketListItemCustom) le esta chave
+  // para todos; sem ela aqui o nao-admin toma 403 a cada item da lista
+  desktopActionIconZoom: "0.8"
 };
 
 export const GetSettingService = async ({
