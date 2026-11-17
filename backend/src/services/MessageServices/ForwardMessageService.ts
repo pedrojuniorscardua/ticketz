@@ -2,7 +2,6 @@ import Message from "../../models/Message";
 import { logger } from "../../utils/logger";
 import Contact from "../../models/Contact";
 import Queue from "../../models/Queue";
-import GetDefaultWhatsApp from "../../helpers/GetDefaultWhatsApp";
 import AppError from "../../errors/AppError";
 import { getWbot } from "../../libs/wbot";
 import {
@@ -60,9 +59,10 @@ const ForwardMessageService = async (
     ) {
       throw new AppError("ERR_FORBIDDEN", 403);
     }
-  } else if (ticket && ticket.userId !== user.id) {
-    throw new AppError("ERR_OTHER_OPEN_TICKET", 400);
   }
+  // Linhares: contato com ticket aberto/pendente de OUTRO usuario nao bloqueia
+  // mais o encaminhamento (antes: ERR_OTHER_OPEN_TICKET). A mensagem entra no
+  // ticket que ja existe, que continua com o dono dele (sem transferir).
 
   if (!ticket) {
     if (!queue) {
