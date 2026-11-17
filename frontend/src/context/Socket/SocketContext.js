@@ -378,7 +378,12 @@ const socketManager = {
       return new DummySocket();
     }
 
-    const { userId, companyId } = decodeToken(token);
+    // Linhares: o access token traz "id" (backend/helpers/CreateTokens.ts), nao
+    // "userId". Lendo "userId" a troca de usuario nunca era detectada: depois de
+    // um login novo na mesma aba o socket antigo era reaproveitado.
+    const decoded = decodeToken(token) || {};
+    const userId = decoded.id ?? decoded.userId;
+    const { companyId } = decoded;
 
     if (companyId !== this.currentCompanyId || userId !== this.currentUserId) {
       if (this.currentSocket) {
@@ -480,6 +485,20 @@ const socketManager = {
       this.onReady(() => {
         this.socketReady = true;
       });
+    } else if (
+      this.currentSocket &&
+      !this.currentSocket.connected &&
+      !this.currentSocket.active
+    ) {
+      // Linhares: socket MORTO = o servidor recusou o token vencido ("io server
+      // disconnect") e a renovacao falhou (cookie expirado -> tela de login, ou
+      // backend reiniciando). O socket.io nao reconecta sozinho nesse caso e o
+      // login novo reaproveitava esse socket: a tela ficava sem tempo real
+      // (aceitar nao tirava a conversa de Pendentes, nada chegava) ate o F5.
+      // Caso Raissa, 17/11/2026: sem socket desde 09/11.
+      console.debug("socket morto - reconectando com o token atual");
+      this.applySocketToken(token, true);
+      this.currentSocket.connect();
     }
 
     return new ManagedSocket(this);
